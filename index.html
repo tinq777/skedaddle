@@ -550,7 +550,7 @@ function SettingsScreen({ currentKey, onSave, onBack }) {
 
   return (
     <div style={BG}><Orbs />
-      <Wrap>
+      <Wrap pad="52px 24px 60px">
         <BackBtn onClick={onBack} />
         <div style={{ fontSize:12, letterSpacing:"0.2em", color:"#ffc850", textTransform:"uppercase", fontWeight:700, marginBottom:12 }}>Settings</div>
         <h2 style={{ fontFamily:"'Fraunces', serif", fontSize:34, fontWeight:900, margin:"0 0 32px", color:"#f8f4ee", letterSpacing:"-0.02em" }}>Your preferences</h2>
@@ -746,11 +746,30 @@ Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects
         headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
         body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,tools:[{type:"web_search_20250305",name:"web_search"}],messages:[{role:"user",content:prompt}]}),
       });
-      const data=await response.json();
-      const text=data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
-      setResults(JSON.parse(text.replace(/```json|```/g,"").trim()));
-    } catch { setError("Couldn't find escapes right now. Give it another go!"); }
-    finally { setLoading(false); setStatusMsg(""); }
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        if (response.status === 401) { setError("API key rejected — go to Settings and check your key."); return; }
+        if (response.status === 429) { setError("Rate limit hit — wait a moment and try again."); return; }
+        setError(`API error ${response.status}: ${err?.error?.message || "please try again."}`);
+        return;
+      }
+      const data = await response.json();
+      if (!data.content || !data.content.length) { setError("No response from API — please try again."); return; }
+      const text = data.content.filter(b => b.type === "text").map(b => b.text).join("");
+      if (!text.trim()) { setError("Empty response — please try again."); return; }
+      // Extract JSON — handle both bare arrays and wrapped in markdown fences
+      const match = text.match(/\[[\s\S]*\]/);
+      if (!match) { setError("Unexpected response format — please try again."); return; }
+      setResults(JSON.parse(match[0]));
+    } catch (err) {
+      if (err.name === "TypeError" && err.message.includes("fetch")) {
+        setError("Can't reach Anthropic — check your internet connection.");
+      } else if (err instanceof SyntaxError) {
+        setError("Couldn't parse the response — please try again.");
+      } else {
+        setError("Something went wrong — please try again.");
+      }
+    } finally { setLoading(false); setStatusMsg(""); }
   }
 
   // ── ONBOARDING GATE ──
