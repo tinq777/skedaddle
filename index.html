@@ -56,6 +56,33 @@
     @keyframes bounce { from { transform: translateY(0) } to { transform: translateY(-12px) } }
     @keyframes fadeSlideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
     a { color: inherit; }
+    :root {
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
+      --sal: env(safe-area-inset-left, 0px);
+      --sar: env(safe-area-inset-right, 0px);
+    }
+    /* Bottom nav bar */
+    .nav-bar {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      background: rgba(10,21,16,0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-left: 16px;
+      padding-right: 16px;
+      padding-top: 10px;
+    }
+    .nav-bar-spacer {
+      /* Pushes content above the nav bar */
+      height: calc(68px + env(safe-area-inset-bottom, 0px));
+    }
   </style>
 </head>
 <body>
@@ -160,15 +187,44 @@ const Orbs = () => (
   </>
 );
 
-const Wrap = ({ children, pad = "32px 24px 60px" }) => (
-  <div style={{ maxWidth:480, margin:"0 auto", padding:pad, position:"relative", zIndex:1 }}>
-    {children}
+const Wrap = ({ children, pad }) => {
+  const topInset = "max(32px, calc(env(safe-area-inset-top, 0px) + 16px))";
+  const defaultPad = `${topInset} 24px 24px`;
+  return (
+    <div style={{ maxWidth:480, margin:"0 auto", padding: pad || defaultPad, position:"relative", zIndex:1 }}>
+      {children}
+    </div>
+  );
+};
+
+// BackBtn kept for legacy use but NavBar is preferred
+const BackBtn = ({ onClick, label="← Back" }) => (
+  <button onClick={onClick} style={{ background:"none", border:"none", color:"#56c88c", cursor:"pointer", fontSize:14, padding:0, marginBottom:16, fontFamily:"'DM Sans', sans-serif" }}>
+    {label}
+  </button>
+);
+
+// Bottom nav bar — big tap targets, safe area aware
+const NavBar = ({ left, center, right }) => (
+  <div className="nav-bar">
+    <div style={{ flex:1, display:"flex", justifyContent:"flex-start" }}>{left}</div>
+    <div style={{ flex:1, display:"flex", justifyContent:"center" }}>{center}</div>
+    <div style={{ flex:1, display:"flex", justifyContent:"flex-end" }}>{right}</div>
   </div>
 );
 
-const BackBtn = ({ onClick, label="← Back" }) => (
-  <button onClick={onClick} style={{ background:"none", border:"none", color:"#56c88c", cursor:"pointer", fontSize:14, padding:0, marginBottom:24, fontFamily:"'DM Sans', sans-serif" }}>
-    {label}
+const NavBtn = ({ onClick, children, accent }) => (
+  <button onClick={onClick} style={{
+    background: accent ? "linear-gradient(135deg,#56c88c,#2ea868)" : "rgba(255,255,255,0.06)",
+    border: accent ? "none" : "1px solid rgba(255,255,255,0.1)",
+    borderRadius:12, padding:"10px 18px",
+    color: accent ? "#071a10" : "#9a958f",
+    fontSize:14, fontWeight:700, cursor:"pointer",
+    fontFamily:"'DM Sans', sans-serif",
+    minWidth:80, textAlign:"center",
+    WebkitTapHighlightColor:"transparent",
+  }}>
+    {children}
   </button>
 );
 
@@ -282,10 +338,10 @@ function OnboardingScreen({ onDone }) {
 
   return (
     <div style={BG}><Orbs />
-      <div style={{ maxWidth:480, margin:"0 auto", padding:"0 24px", minHeight:"100vh", display:"flex", flexDirection:"column", position:"relative", zIndex:1 }}>
+      <div style={{ maxWidth:480, margin:"0 auto", padding:"0 24px", minHeight:"100vh", display:"flex", flexDirection:"column", position:"relative", zIndex:1, paddingTop:"env(safe-area-inset-top, 0px)" }}>
 
         {/* Skip */}
-        <div style={{ display:"flex", justifyContent:"flex-end", paddingTop:52 }}>
+        <div style={{ display:"flex", justifyContent:"flex-end", paddingTop:52, paddingTop:"max(52px, calc(env(safe-area-inset-top,0px) + 16px))" }}>
           <button onClick={skip} style={{ background:"none", border:"none", color:"#5a5550", fontSize:14, cursor:"pointer", fontFamily:"'DM Sans', sans-serif", padding:"6px 0" }}>
             Skip
           </button>
@@ -402,7 +458,6 @@ function DetailScreen({ dest, checkIn, checkOut, guests, petFriendly, favourites
   return (
     <div style={BG}><Orbs />
       <Wrap>
-        <BackBtn onClick={onBack} label="← Back to results" />
         <div style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.09)", borderRadius:22, padding:28, marginBottom:14, position:"relative", overflow:"hidden" }}>
           <div style={{ position:"absolute", top:0, left:0, right:0, height:3, background:"linear-gradient(90deg,#56c88c,#2ea868)" }} />
           <div style={{ fontSize:52, marginBottom:12 }}>{dest.emoji}</div>
@@ -443,7 +498,13 @@ function DetailScreen({ dest, checkIn, checkOut, guests, petFriendly, favourites
           <a href={buildAirbnbUrl(dest.destination,checkIn,checkOut,guests,petFriendly)} target="_blank" rel="noopener noreferrer" style={{ display:"block", textAlign:"center", padding:15, background:"linear-gradient(135deg,#56c88c,#2ea868)", color:"#071a10", borderRadius:13, fontWeight:700, fontSize:14, textDecoration:"none" }}>Airbnb →</a>
           <a href={buildStayzUrl(dest.destination,checkIn,checkOut,guests,petFriendly)} target="_blank" rel="noopener noreferrer" style={{ display:"block", textAlign:"center", padding:15, background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.13)", color:"#f0ede6", borderRadius:13, fontWeight:700, fontSize:14, textDecoration:"none" }}>Stayz →</a>
         </div>
+        <div className="nav-bar-spacer" />
       </Wrap>
+      <NavBar
+        left={<NavBtn onClick={onBack}>← Results</NavBtn>}
+        center={null}
+        right={null}
+      />
     </div>
   );
 }
@@ -468,10 +529,6 @@ function SavedScreen({ favourites, beenThere, onToggleFav, onToggleBeenThere, on
   return (
     <div style={BG}><Orbs />
       <Wrap>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:28 }}>
-          <BackBtn onClick={onBack} label="← Back" />
-          <button onClick={onOpenSettings} style={{ background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", borderRadius:20, padding:"6px 14px", color:"#9a958f", fontSize:12, cursor:"pointer", fontFamily:"'DM Sans', sans-serif", fontWeight:600 }}>⚙️ Settings</button>
-        </div>
         <div style={{ marginBottom:28 }}>
           <div style={{ fontSize:11, letterSpacing:"0.2em", color:"#ffc850", textTransform:"uppercase", fontWeight:700, marginBottom:8 }}>Saved spots</div>
           <H2>Your bolthole list</H2>
@@ -482,7 +539,13 @@ function SavedScreen({ favourites, beenThere, onToggleFav, onToggleBeenThere, on
             <DestinationCard key={dest.destination} dest={dest} index={i} checkIn={checkIn} checkOut={checkOut} guests={2} petFriendly={false} favourites={favourites} beenThere={beenThere} onToggleFav={onToggleFav} onToggleBeenThere={onToggleBeenThere} onOpenDetail={() => {}} />
           ))}
         </div>
+        <div className="nav-bar-spacer" />
       </Wrap>
+      <NavBar
+        left={<NavBtn onClick={onBack}>← Back</NavBtn>}
+        center={null}
+        right={<NavBtn onClick={onOpenSettings}>⚙️ Settings</NavBtn>}
+      />
     </div>
   );
 }
@@ -550,8 +613,7 @@ function SettingsScreen({ currentKey, onSave, onBack }) {
 
   return (
     <div style={BG}><Orbs />
-      <Wrap pad="52px 24px 60px">
-        <BackBtn onClick={onBack} />
+      <Wrap>
         <div style={{ fontSize:12, letterSpacing:"0.2em", color:"#ffc850", textTransform:"uppercase", fontWeight:700, marginBottom:12 }}>Settings</div>
         <h2 style={{ fontFamily:"'Fraunces', serif", fontSize:34, fontWeight:900, margin:"0 0 32px", color:"#f8f4ee", letterSpacing:"-0.02em" }}>Your preferences</h2>
 
@@ -669,7 +731,13 @@ function SettingsScreen({ currentKey, onSave, onBack }) {
             </div>
           ))}
         </div>
+        <div className="nav-bar-spacer" />
       </Wrap>
+      <NavBar
+        left={<NavBtn onClick={onBack}>← Back</NavBtn>}
+        center={null}
+        right={null}
+      />
     </div>
   );
 }
@@ -780,7 +848,7 @@ Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects
 
   if (screen==="home") return (
     <div style={BG}><Orbs />
-      <Wrap pad="56px 24px 40px">
+      <Wrap pad={`calc(env(safe-area-inset-top,0px) + 56px) 24px 24px`}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:32 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:22 }}>🏃</span>
@@ -819,17 +887,21 @@ Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects
             </div>
           </div>
         )}
-        <GreenBtn onClick={()=>{ if(!apiKey){goSettings();return;} setScreen("filters"); }}>
-          {apiKey ? "Let's go 🏃 →" : "Add API key to start →"}
-        </GreenBtn>
+        <div className="nav-bar-spacer" />
       </Wrap>
+      <NavBar
+        left={<NavBtn onClick={goSettings}>⚙️</NavBtn>}
+        center={null}
+        right={<NavBtn onClick={()=>{ if(!apiKey){goSettings();return;} setScreen("filters"); }} accent>
+          {apiKey ? "Let's go →" : "Set API key"}
+        </NavBtn>}
+      />
     </div>
   );
 
   if (screen==="filters") return (
     <div style={BG}><Orbs />
       <Wrap>
-        <BackBtn onClick={()=>setScreen("home")} />
         <h2 style={{ fontFamily:"'Fraunces', serif", fontSize:34, fontWeight:900, margin:"0 0 30px", color:"#f8f4ee", letterSpacing:"-0.02em" }}>Plan the skedaddle</h2>
         <Section label="When are you going?">
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
@@ -865,21 +937,20 @@ Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects
             </div>
           </button>
         </Section>
-        <GreenBtn onClick={()=>runFetch()} disabled={!vibe}>Skedaddle! ✨</GreenBtn>
+        <div className="nav-bar-spacer" />
       </Wrap>
+      <NavBar
+        left={<NavBtn onClick={()=>setScreen("home")}>← Back</NavBtn>}
+        center={null}
+        right={<NavBtn onClick={()=>runFetch()} accent={!!vibe}>Skedaddle! ✨</NavBtn>}
+      />
     </div>
   );
 
   return (
     <div style={BG}><Orbs />
       <Wrap>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:26 }}>
-          <BackBtn onClick={()=>setScreen("filters")} label="← Change filters" />
-          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            <SavedBadge count={favourites.length} onClick={()=>setScreen("saved")} />
-            <button onClick={goSettings} style={{ width:36, height:36, borderRadius:"50%", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#9a958f", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>⚙️</button>
-          </div>
-        </div>
+
         <div style={{ marginBottom:28 }}>
           <div style={{ fontSize:11, letterSpacing:"0.18em", color:"#56c88c", textTransform:"uppercase", fontWeight:700, marginBottom:8 }}>{selectedVibe?.emoji} {selectedVibe?.label} · {distance}hr · {selectedGroup?.label}{petFriendly?" · 🐾":""}</div>
           <H2>Time to skedaddle!</H2>
@@ -892,7 +963,13 @@ Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects
             <button onClick={()=>runFetch()} style={{ marginTop:8, padding:16, borderRadius:14, background:"rgba(86,200,140,0.08)", border:"1px solid rgba(86,200,140,0.22)", color:"#56c88c", cursor:"pointer", fontSize:15, fontWeight:700, fontFamily:"'DM Sans', sans-serif" }}>🏃 Skedaddle somewhere else</button>
           </div>
         )}
+        <div className="nav-bar-spacer" />
       </Wrap>
+      <NavBar
+        left={<NavBtn onClick={()=>setScreen("filters")}>← Filters</NavBtn>}
+        center={<SavedBadge count={favourites.length} onClick={()=>setScreen("saved")} />}
+        right={<NavBtn onClick={goSettings}>⚙️</NavBtn>}
+      />
     </div>
   );
 }
