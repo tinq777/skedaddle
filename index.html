@@ -187,15 +187,11 @@ const Orbs = () => (
   </>
 );
 
-const Wrap = ({ children, pad }) => {
-  const topInset = "max(32px, calc(env(safe-area-inset-top, 0px) + 16px))";
-  const defaultPad = `${topInset} 24px 24px`;
-  return (
-    <div style={{ maxWidth:480, margin:"0 auto", padding: pad || defaultPad, position:"relative", zIndex:1 }}>
-      {children}
-    </div>
-  );
-};
+const Wrap = ({ children, pad }) => (
+  <div style={{ maxWidth:480, margin:"0 auto", padding: pad || "max(32px, calc(env(safe-area-inset-top, 0px) + 16px)) 24px 24px", position:"relative", zIndex:1 }}>
+    {children}
+  </div>
+);
 
 // BackBtn kept for legacy use but NavBar is preferred
 const BackBtn = ({ onClick, label="← Back" }) => (
@@ -341,7 +337,7 @@ function OnboardingScreen({ onDone }) {
       <div style={{ maxWidth:480, margin:"0 auto", padding:"0 24px", minHeight:"100vh", display:"flex", flexDirection:"column", position:"relative", zIndex:1, paddingTop:"env(safe-area-inset-top, 0px)" }}>
 
         {/* Skip */}
-        <div style={{ display:"flex", justifyContent:"flex-end", paddingTop:52, paddingTop:"max(52px, calc(env(safe-area-inset-top,0px) + 16px))" }}>
+        <div style={{ display:"flex", justifyContent:"flex-end", paddingTop:"max(52px, calc(env(safe-area-inset-top,0px) + 16px))" }}>
           <button onClick={skip} style={{ background:"none", border:"none", color:"#5a5550", fontSize:14, cursor:"pointer", fontFamily:"'DM Sans', sans-serif", padding:"6px 0" }}>
             Skip
           </button>
@@ -802,7 +798,7 @@ A user wants to skedaddle from Sydney with these preferences:
 - Pet friendly: ${usePet?"YES — dog/pet friendly stays, off-leash beaches or trails":"No"}
 - Already visited (skip these): ${beenThere.length>0?beenThere.join(", "):"none"}
 
-Use web search to find current specific destinations. Be opinionated — no generic tourist traps.
+Suggest current, specific destinations based on your knowledge. Be opinionated — no generic tourist traps.
 
 Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects:
 {"destination":"Town or area name","emoji":"single relevant emoji","distance_from_sydney":"e.g. 2 hrs drive","why_go":"2-3 punchy sentences","best_for":["tag1","tag2","tag3"],"insider_tip":"one very specific local tip","things_to_do":["activity 1","activity 2","activity 3","activity 4"]}`;
@@ -812,7 +808,7 @@ Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1500,tools:[{type:"web_search_20250305",name:"web_search"}],messages:[{role:"user",content:prompt}]}),
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:1500,messages:[{role:"user",content:prompt}]}),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -835,7 +831,7 @@ Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects
       } else if (err instanceof SyntaxError) {
         setError("Couldn't parse the response — please try again.");
       } else {
-        setError("Something went wrong — please try again.");
+        setError("Error: " + (err?.message || "Something went wrong — please try again."));
       }
     } finally { setLoading(false); setStatusMsg(""); }
   }
@@ -848,16 +844,13 @@ Return ONLY a valid JSON array (no markdown, no extra text) of exactly 6 objects
 
   if (screen==="home") return (
     <div style={BG}><Orbs />
-      <Wrap pad={`calc(env(safe-area-inset-top,0px) + 56px) 24px 24px`}>
+      <Wrap pad="calc(env(safe-area-inset-top,0px) + 56px) 24px 24px">
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:32 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
             <span style={{ fontSize:22 }}>🏃</span>
             <span style={{ fontFamily:"'Fraunces', serif", fontWeight:900, fontSize:20, color:"#f8f4ee", letterSpacing:"-0.02em" }}>Skedaddle</span>
           </div>
-          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-            <SavedBadge count={favourites.length} onClick={()=>setScreen("saved")} />
-            <button onClick={goSettings} style={{ width:36, height:36, borderRadius:"50%", background:"rgba(255,255,255,0.05)", border:"1px solid rgba(255,255,255,0.1)", color:"#9a958f", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>⚙️</button>
-          </div>
+          <SavedBadge count={favourites.length} onClick={()=>setScreen("saved")} />
         </div>
         <div style={{ background:"rgba(255,200,80,0.07)", border:"1px solid rgba(255,200,80,0.2)", borderRadius:16, padding:"16px 18px", marginBottom:32, display:"flex", gap:14, alignItems:"center" }}>
           <span style={{ fontSize:28, flexShrink:0 }}>{season.emoji}</span>
