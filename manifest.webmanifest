@@ -1,0 +1,18 @@
+{
+  "name": "Skedaddle",
+  "short_name": "Skedaddle",
+  "description": "Weekend escape inspiration from Sydney \u2014 powered by AI",
+  "start_url": ".",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0d1f1a",
+  "theme_color": "#0d1f1a",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
