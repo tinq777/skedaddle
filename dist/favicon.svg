@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <rect width="100" height="100" rx="22" fill="#0d1f1a"/>
+  <circle cx="72" cy="20" r="18" fill="#56c88c" opacity="0.9"/>
+  <!-- Head -->
+  <circle cx="62" cy="22" r="9" fill="#f8f4ee"/>
+  <!-- Body -->
+  <line x1="58" y1="32" x2="50" y2="55" stroke="#f8f4ee" stroke-width="6" stroke-linecap="round"/>
+  <!-- Forward arm -->
+  <line x1="58" y1="38" x2="72" y2="48" stroke="#56c88c" stroke-width="5" stroke-linecap="round"/>
+  <!-- Back arm -->
+  <line x1="55" y1="40" x2="40" y2="34" stroke="#56c88c" stroke-width="5" stroke-linecap="round"/>
+  <!-- Forward leg -->
+  <line x1="50" y1="55" x2="62" y2="72" stroke="#f8f4ee" stroke-width="5" stroke-linecap="round"/>
+  <line x1="62" y1="72" x2="72" y2="82" stroke="#f8f4ee" stroke-width="5" stroke-linecap="round"/>
+  <!-- Back leg -->
+  <line x1="50" y1="55" x2="38" y2="68" stroke="#f8f4ee" stroke-width="5" stroke-linecap="round"/>
+  <line x1="38" y1="68" x2="30" y2="80" stroke="#f8f4ee" stroke-width="5" stroke-linecap="round"/>
+  <!-- Motion lines -->
+  <line x1="20" y1="38" x2="34" y2="38" stroke="#56c88c" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="18" y1="48" x2="30" y2="48" stroke="#56c88c" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+  <line x1="22" y1="58" x2="30" y2="58" stroke="#56c88c" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+</svg>

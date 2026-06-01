@@ -1,46 +1,39 @@
-# 🏃 Skedaddle
+# Skedaddle PWA — Production Build
 
-**Weekend escape inspiration from Sydney — powered by AI.**
+This version removes demo mode and replaces the browser-Babel setup with a production Vite/React app.
 
-Skedaddle helps you find the perfect weekend getaway from Sydney in seconds. Tell it your vibe, how far you'll drive, and who's coming — it searches the web and returns 6 curated destination ideas with insider tips and direct links to book on Airbnb or Stayz.
+## What changed
 
-## Features
+- Removed demo/mock destinations entirely.
+- Removed JSX-in-browser execution.
+- Added Vite production build pipeline.
+- Added PWA manifest.
+- Added `worker-example.js` for a safer Cloudflare Worker backend.
+- The app now requires either:
+  - `VITE_WORKER_URL` configured at build/deploy time, or
+  - a user-supplied Anthropic API key entered in Settings.
 
-- 🌲 **8 vibes** — Cabin, Beach, Eco, Wine, Family, Adventure, Wellness, Hidden Gems
-- 🗓️ **Pick your dates** — any weekend, auto-defaults to next Friday–Sunday
-- 📍 **Distance filter** — 2, 3, or 4 hours from Sydney
-- 🐾 **Pet friendly toggle** — filters destinations and Airbnb results
-- ⭐ **Save favourites** — persisted to localStorage
-- ✓ **Been there flag** — skip places you've already visited
-- 🕓 **Search history** — rerun your last 3 searches in one tap
-- ↗ **Native share** — share destinations via iOS/Android share sheet
-- 🗺️ **Google Maps link** — open any destination in Maps
-- 🔒 **Your API key, your device** — stored locally, never leaves your browser
+## Run locally
 
-## Setup
+```bash
+npm install
+npm run dev
+```
 
-1. Open `index.html` in any modern browser — no build step, no npm, no server needed
-2. On first launch, enter your [Anthropic API key](https://console.anthropic.com/keys)
-3. Your key is saved to localStorage on your device only
+## Build for production
 
-## Deploying to GitHub Pages
+```bash
+npm run build
+```
 
-1. Create a new GitHub repo
-2. Upload `index.html` and `favicon.svg` to the repo root
-3. Go to **Settings → Pages → Source → Deploy from branch → main / root**
-4. Your app will be live at `https://yourusername.github.io/reponame`
+Deploy the generated `dist/` folder to Netlify, Vercel, Cloudflare Pages, or your static host.
 
-## Tech stack
+## Recommended production API setup
 
-- React 18 via CDN (unpkg)
-- Babel Standalone for JSX transpilation
-- Anthropic Claude API with web search tool
-- No build step · No dependencies · No server
+Do not expose your Anthropic key in frontend code. Deploy `worker-example.js` as a Cloudflare Worker, add your `ANTHROPIC_API_KEY` as a Worker secret, then set this environment variable in your frontend host:
 
-## Privacy
+```bash
+VITE_WORKER_URL=https://your-worker.yourname.workers.dev
+```
 
-See [PRIVACY.md](PRIVACY.md) for details on data handling.
-
-## License
-
-MIT — see [LICENSE](LICENSE)
+Then rebuild/redeploy the frontend.
