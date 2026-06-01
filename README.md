@@ -1,39 +1,36 @@
 # Skedaddle PWA — Production Build
 
-This version removes demo mode and replaces the browser-Babel setup with a production Vite/React app.
+This build fixes the blank-load issue and removes demo/browser API-key mode.
 
-## What changed
+## What was fixed
 
-- Removed demo/mock destinations entirely.
-- Removed JSX-in-browser execution.
-- Added Vite production build pipeline.
-- Added PWA manifest.
-- Added `worker-example.js` for a safer Cloudflare Worker backend.
-- The app now requires either:
-  - `VITE_WORKER_URL` configured at build/deploy time, or
-  - a user-supplied Anthropic API key entered in Settings.
+- Replaced the broken `ReactDOM.createRoot(...)` call with the imported `createRoot(...)` API.
+- Compiled JSX with Vite instead of shipping raw JSX to the browser.
+- Changed Vite `base` to `./` so assets load correctly on static hosts and subfolders.
+- Removed client-side Anthropic API key entry and direct browser API calls.
+- Added runtime `public/config.js` / `dist/config.js` for your secure Worker URL.
 
-## Run locally
+## Deploy
+
+Upload the contents of `dist/` to your static host.
+
+Then set your Worker URL in `dist/config.js`:
+
+```js
+window.SKEDADDLE_WORKER_URL = "https://your-worker.your-subdomain.workers.dev";
+```
+
+Do not put Anthropic/OpenAI API keys in the frontend. Store secrets only in your Worker/backend.
+
+## Local development
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Build for production
+## Production build
 
 ```bash
 npm run build
 ```
-
-Deploy the generated `dist/` folder to Netlify, Vercel, Cloudflare Pages, or your static host.
-
-## Recommended production API setup
-
-Do not expose your Anthropic key in frontend code. Deploy `worker-example.js` as a Cloudflare Worker, add your `ANTHROPIC_API_KEY` as a Worker secret, then set this environment variable in your frontend host:
-
-```bash
-VITE_WORKER_URL=https://your-worker.yourname.workers.dev
-```
-
-Then rebuild/redeploy the frontend.

@@ -32,8 +32,8 @@ const ONBOARDING = [
 
 // Production API configuration.
 // Set VITE_WORKER_URL in your hosting environment to call a secure backend/Cloudflare Worker.
-// If empty, the app falls back to user-supplied Anthropic API keys stored locally.
-const WORKER_URL = import.meta.env.VITE_WORKER_URL || "";
+// API keys must never be exposed in the browser.
+const WORKER_URL = (typeof window !== "undefined" && window.SKEDADDLE_WORKER_URL) || import.meta.env.VITE_WORKER_URL || "";
 
 function buildAirbnbUrl(dest, ci, co, guests, pet) {
   const p = new URLSearchParams({ query: dest+", NSW, Australia", checkin:ci, checkout:co, adults:guests, refinement_paths:"/homes", search_type:"filter_change" });
@@ -119,71 +119,38 @@ function OnboardingScreen({ onDone }) {
       <div style={{ paddingBottom:48 }}>
         <button onClick={() => isLast?onDone():setSlide(s=>s+1)} style={{ width:"100%",padding:18,borderRadius:16,background:`linear-gradient(135deg,${cur.accent},${cur.accent}cc)`,color:"#071a10",border:"none",cursor:"pointer",fontSize:17,fontWeight:700,fontFamily:"'DM Sans',sans-serif" }}>{isLast?"Let's go 🏃 →":"Next →"}</button>
         {isLast && <div style={{ marginTop:16,padding:"14px 18px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,fontSize:12,color:"#6a6560",lineHeight:1.7,textAlign:"center" }}>
-          You'll need a free Anthropic API key to power the search. Add it anytime in <strong style={{ color:"#c8c3b8" }}>⚙️ Settings</strong>.
+          Skedaddle uses a secure backend Worker in production, so API keys are never stored in the browser.
         </div>}
       </div>
     </div>
   </div>;
 }
 
-function SettingsScreen({ currentKey, onSave, onBack }) {
-  const [hasKey, setHasKey]     = useState(!!currentKey);
-  const [key, setKey]           = useState("");
-  const [error, setError]       = useState("");
-  const [testing, setTesting]   = useState(false);
-  const [saved, setSaved]       = useState(false);
-  const [editing, setEditing]   = useState(!currentKey);
-
-  async function handleSave() {
-    const t = key.trim();
-    if (!t.startsWith("sk-ant-")) { setError("Keys start with sk-ant- — check and try again."); return; }
-    setTesting(true); setError("");
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", { method:"POST", headers:{"Content-Type":"application/json","x-api-key":t,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"}, body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:10,messages:[{role:"user",content:"hi"}]}) });
-      if (res.status===401) { setError("Invalid key — double-check and try again."); setTesting(false); return; }
-      ls.setStr("skedaddle_apikey",t); onSave(t); setEditing(false); setHasKey(true); setSaved(true); setKey("");
-    } catch { setError("Couldn't reach Anthropic — check your connection."); }
-    setTesting(false);
-  }
-  function handleRemove() {
-    if (!window.confirm("Remove your API key?")) return;
-    ls.del("skedaddle_apikey"); onSave(""); setHasKey(false); setEditing(true); setSaved(false); setKey(""); setError("");
-  }
+function SettingsScreen({ onBack }) {
+  const workerConfigured = !!WORKER_URL;
+  const card = { background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:18,padding:22,marginBottom:14 };
   function clearData(type) {
     const labels={favs:"saved places",been:"been there list",history:"search history"};
     if (!window.confirm(`Clear your ${labels[type]}?`)) return;
     ls.del(`skedaddle_${type}`); window.location.reload();
   }
-  const card = { background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:18,padding:22,marginBottom:14 };
   return <div style={BG}><Orbs />
     <div style={PAGE}>
       <div style={{ fontSize:11,letterSpacing:"0.2em",color:"#ffc850",textTransform:"uppercase",fontWeight:700,marginBottom:12 }}>Settings</div>
       <h2 style={{ fontFamily:"'Fraunces',serif",fontSize:34,fontWeight:900,margin:"0 0 32px",color:"#f8f4ee",letterSpacing:"-0.02em" }}>Your preferences</h2>
       <div style={card}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-          <div>
-            <div style={{ fontSize:11,letterSpacing:"0.15em",color:"#56c88c",fontWeight:700,textTransform:"uppercase",marginBottom:4 }}>Anthropic API Key</div>
-            <div style={{ fontSize:13,color:"#6a6560" }}>Powers the AI search</div>
+        <div style={{ fontSize:11,letterSpacing:"0.15em",color:"#56c88c",fontWeight:700,textTransform:"uppercase",marginBottom:12 }}>Production API</div>
+        {workerConfigured ? <>
+          <div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:10,background:"rgba(86,200,140,0.08)",border:"1px solid rgba(86,200,140,0.2)",marginBottom:10 }}>
+            <span style={{ color:"#56c88c",fontSize:16 }}>✓</span><span style={{ fontSize:13,color:"#56c88c",fontWeight:600 }}>Secure Worker configured</span>
           </div>
-          {hasKey&&!editing&&<button onClick={()=>{setKey("");setEditing(true);setSaved(false);setError("");}} style={{ background:"rgba(86,200,140,0.1)",border:"1px solid rgba(86,200,140,0.25)",borderRadius:10,padding:"6px 12px",color:"#56c88c",fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"'DM Sans',sans-serif" }}>Change</button>}
-        </div>
-        {hasKey&&!editing&&<>
-          {saved&&<div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:10,background:"rgba(86,200,140,0.08)",border:"1px solid rgba(86,200,140,0.2)",marginBottom:10 }}><span style={{ color:"#56c88c",fontSize:16 }}>✓</span><span style={{ fontSize:13,color:"#56c88c",fontWeight:600 }}>Key saved and verified</span></div>}
-          <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-            <div style={{ flex:1,padding:"11px 14px",borderRadius:10,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",fontSize:14,color:"#c8c3b8",fontFamily:"monospace" }}>sk-ant-••••••••••••</div>
-            <button onClick={handleRemove} style={{ padding:"11px 14px",borderRadius:10,background:"rgba(255,80,80,0.08)",border:"1px solid rgba(255,80,80,0.18)",color:"#ff8080",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif" }}>Remove</button>
+          <div style={{ fontSize:12,color:"#5a5550",lineHeight:1.6 }}>AI requests are routed through your backend. No Anthropic key is exposed to users.</div>
+        </> : <>
+          <div style={{ display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:10,background:"rgba(255,200,80,0.08)",border:"1px solid rgba(255,200,80,0.25)",marginBottom:10 }}>
+            <span style={{ color:"#ffc850",fontSize:16 }}>!</span><span style={{ fontSize:13,color:"#ffc850",fontWeight:600 }}>Backend Worker not configured</span>
           </div>
+          <div style={{ fontSize:12,color:"#8a8580",lineHeight:1.6 }}>Set <strong style={{ color:"#c8c3b8" }}>VITE_WORKER_URL</strong> in your hosting environment, then rebuild/deploy. Demo mode and browser API keys have been removed.</div>
         </>}
-        {editing&&<>
-          <input type="password" placeholder="sk-ant-api03-..." value={key} autoFocus onChange={e=>{setKey(e.target.value);setError("");}} style={{ width:"100%",padding:"12px 14px",borderRadius:11,background:"rgba(255,255,255,0.05)",border:error?"1px solid rgba(255,80,80,0.5)":"1px solid rgba(255,255,255,0.12)",color:"#f0ede6",fontSize:14,outline:"none",marginBottom:error?8:10,fontFamily:"'DM Sans',sans-serif" }} />
-          {error&&<div style={{ fontSize:12,color:"#ff6060",marginBottom:10,lineHeight:1.5 }}>⚠️ {error}</div>}
-          <div style={{ display:"flex",gap:8 }}>
-            <button onClick={handleSave} disabled={!key.trim()||testing} style={{ flex:1,padding:11,borderRadius:10,background:key.trim()&&!testing?"linear-gradient(135deg,#56c88c,#2ea868)":"rgba(255,255,255,0.06)",color:key.trim()&&!testing?"#071a10":"#444",border:"none",cursor:key.trim()&&!testing?"pointer":"not-allowed",fontWeight:700,fontSize:13,fontFamily:"'DM Sans',sans-serif" }}>{testing?"Verifying...":"Save key"}</button>
-            {hasKey&&<button onClick={()=>{setEditing(false);setKey("");setError("");}} style={{ padding:"11px 16px",borderRadius:10,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#9a958f",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif" }}>Cancel</button>}
-          </div>
-          {error&&<button onClick={()=>{setKey("");setError("");}} style={{ marginTop:10,width:"100%",padding:10,borderRadius:10,background:"rgba(255,80,80,0.06)",border:"1px solid rgba(255,80,80,0.15)",color:"#ff8080",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif" }}>Clear and try a different key</button>}
-        </>}
-        <div style={{ marginTop:12,fontSize:12,color:"#5a5550",lineHeight:1.6 }}>🔒 Stored on this device only. <a href="https://console.anthropic.com/keys" target="_blank" style={{ color:"#56c88c",textDecoration:"none" }}>Get a key →</a></div>
       </div>
       <div style={card}>
         <div style={{ fontSize:11,letterSpacing:"0.15em",color:"#56c88c",fontWeight:700,textTransform:"uppercase",marginBottom:16 }}>Data & Storage</div>
@@ -197,7 +164,7 @@ function SettingsScreen({ currentKey, onSave, onBack }) {
       </div>
       <div style={card}>
         <div style={{ fontSize:11,letterSpacing:"0.15em",color:"#56c88c",fontWeight:700,textTransform:"uppercase",marginBottom:14 }}>About</div>
-        {[{label:"App",value:"Skedaddle"},{label:"Version",value:"1.0.0"},{label:"Model",value:"claude-sonnet-4-6"}].map(row=>(
+        {[{label:"App",value:"Skedaddle"},{label:"Version",value:"1.0.1"},{label:"Mode",value:"Production"}].map(row=>(
           <div key={row.label} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",paddingBottom:10,marginBottom:10,borderBottom:"1px solid rgba(255,255,255,0.05)" }}>
             <span style={{ fontSize:13,color:"#6a6560" }}>{row.label}</span>
             <span style={{ fontSize:13,color:"#c8c3b8",fontWeight:600 }}>{row.value}</span>
@@ -338,7 +305,6 @@ function App() {
   const [error, setError]         = useState(null);
   const [statusMsg, setStatus]    = useState("");
   const [pet, setPet]             = useState(false);
-  const [apiKey, setApiKey]       = useState(()=>ls.str("skedaddle_apikey",""));
   const [onboarded, setOnboarded] = useState(()=>ls.get("skedaddle_onboarded",false));
   const [favs, setFavs]           = useState(()=>ls.get("skedaddle_favs",[]));
   const [been, setBeen]           = useState(()=>ls.get("skedaddle_been",[]));
@@ -372,20 +338,12 @@ function App() {
 
 
     try {
-      // Use Worker (with web search) if configured, else call Anthropic directly
-      const usingWorker = !!WORKER_URL;
-      const endpoint = usingWorker ? WORKER_URL : "https://api.anthropic.com/v1/messages";
-      const headers = usingWorker
-        ? { "Content-Type": "application/json" }
-        : { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" };
-      const body = usingWorker
-        ? { messages: [{ role: "user", content: prompt }] }
-        : { model: "claude-sonnet-4-6", max_tokens: 2000, messages: [{ role: "user", content: prompt }] };
-      const res = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+      if (!WORKER_URL) { setError("Production backend is not configured. Set VITE_WORKER_URL and redeploy."); setLoading(false); setStatus(""); return; }
+      const res = await fetch(WORKER_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: [{ role: "user", content: prompt }] }) });
       if (!res.ok) {
         const e=await res.json().catch(()=>({}));
-        if (res.status===401) setError("API key rejected — check Settings.");
-        else if (res.status===429) setError("Rate limit hit — wait a moment and try again.");
+        if (res.status===401) setError("Backend rejected the request — check your Worker secret.");
+        else if (res.status===429) setError("Rate limit hit — try again shortly.");
         else setError(`API error ${res.status}: ${e&&e.error&&e.error.message?e.error.message:"please try again."}`);
         setLoading(false); setStatus(""); return;
       }
@@ -394,12 +352,12 @@ function App() {
       const match=text.match(/\[[\s\S]*\]/);
       if (!match) { setError("Unexpected response — please try again."); setLoading(false); setStatus(""); return; }
       setResults(JSON.parse(match[0]));
-    } catch { setError("Can't reach Anthropic — check your connection."); }
+    } catch { setError("Can't reach the backend Worker — check your connection and VITE_WORKER_URL."); }
     setLoading(false); setStatus("");
   }
 
   if (!onboarded) return <OnboardingScreen onDone={()=>{ls.set("skedaddle_onboarded",true);setOnboarded(true);}} />;
-  if (screen==="settings") return <SettingsScreen currentKey={apiKey} onSave={k=>setApiKey(k)} onBack={()=>setScreen(prevScreen||"home")} />;
+  if (screen==="settings") return <SettingsScreen onBack={()=>setScreen(prevScreen||"home")} />;
   if (screen==="saved") return <SavedScreen favs={favs} been={been} onFav={toggleFav} onBeen={toggleBeen} onBack={()=>setScreen("home")} onSettings={goSettings} />;
   if (screen==="detail"&&detailDest) return <DetailScreen dest={detailDest} checkIn={checkIn} checkOut={checkOut} guests={selG?selG.guests:2} pet={pet} favs={favs} been={been} onFav={toggleFav} onBeen={toggleBeen} onBack={()=>setScreen("results")} />;
 
@@ -416,9 +374,9 @@ function App() {
         <span style={{ fontSize:28,flexShrink:0 }}>{season.emoji}</span>
         <div><div style={{ fontWeight:700,fontSize:14,color:"#ffc850",marginBottom:3 }}>{season.banner}</div><div style={{ fontSize:13,color:"#8a8070" }}>{season.sub}</div></div>
       </div>
-      {!apiKey && !WORKER_URL && <div onClick={goSettings} style={{ background:"rgba(255,200,80,0.08)",border:"1px solid rgba(255,200,80,0.25)",borderRadius:14,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12,cursor:"pointer" }}>
-        <span style={{ fontSize:20,flexShrink:0 }}>🔑</span>
-        <div style={{ flex:1 }}><div style={{ fontSize:13,fontWeight:700,color:"#ffc850",marginBottom:2 }}>Add your API key to get started</div><div style={{ fontSize:12,color:"#8a8070" }}>Tap to open Settings</div></div>
+      {!WORKER_URL && <div onClick={goSettings} style={{ background:"rgba(255,200,80,0.08)",border:"1px solid rgba(255,200,80,0.25)",borderRadius:14,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12,cursor:"pointer" }}>
+        <span style={{ fontSize:20,flexShrink:0 }}>⚙️</span>
+        <div style={{ flex:1 }}><div style={{ fontSize:13,fontWeight:700,color:"#ffc850",marginBottom:2 }}>Backend setup needed</div><div style={{ fontSize:12,color:"#8a8070" }}>Configure your secure Worker URL</div></div>
         <span style={{ fontSize:12,color:"#ffc850",opacity:0.7 }}>→</span>
       </div>}
       <div style={{ fontSize:12,letterSpacing:"0.2em",color:"#ffc850",textTransform:"uppercase",fontWeight:700,marginBottom:16 }}>Weekend escapes from Sydney</div>
@@ -436,7 +394,7 @@ function App() {
         })}
       </div>}
     </div>
-    <NavBar left={<NavBtn onClick={goSettings}>⚙️</NavBtn>} right={<NavBtn onClick={()=>{if(!apiKey && !WORKER_URL){goSettings();return;}setScreen("filters");}} accent={true}>{apiKey || WORKER_URL ? "Let's go →" : "Set API key"}</NavBtn>} />
+    <NavBar left={<NavBtn onClick={goSettings}>⚙️</NavBtn>} right={<NavBtn onClick={()=>{if(!WORKER_URL){goSettings();return;}setScreen("filters");}} accent={true}>{WORKER_URL ? "Let's go →" : "Setup needed"}</NavBtn>} />
   </div>;
 
   if (screen==="filters") return <div style={BG}><Orbs />
@@ -506,4 +464,4 @@ function App() {
 }
 
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
+createRoot(document.getElementById("root")).render(<App />);
