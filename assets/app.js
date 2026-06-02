@@ -20,6 +20,33 @@ const GROUPS = [
     { id: "family", label: "Family", emoji: "👨‍👩‍👧", guests: 4 },
     { id: "friends", label: "Friends", emoji: "👥", guests: 4 },
 ];
+const BUDGETS = [
+    { id: "500", label: "Under $500", desc: "Keep it lean" },
+    { id: "1000", label: "$500-$1,000", desc: "Budget-friendly" },
+    { id: "2000", label: "$1,000-$2,000", desc: "Comfortable" },
+    { id: "2000plus", label: "$2,000+", desc: "Premium" },
+    { id: "any", label: "No budget", desc: "Best fit" },
+];
+const DESTINATION_BUDGETS = {
+    "blue mountains": { couple: "$450-$900", family: "$800-$1,500", level: 2, type: "Popular Favourite" },
+    "central coast": { couple: "$450-$950", family: "$850-$1,600", level: 2, type: "Popular Favourite" },
+    "terrigal": { couple: "$550-$1,100", family: "$950-$1,800", level: 2, type: "Popular Favourite" },
+    "kiama": { couple: "$550-$1,100", family: "$950-$1,800", level: 2, type: "Popular Favourite" },
+    "berry": { couple: "$650-$1,200", family: "$1,100-$2,000", level: 3, type: "Popular Favourite" },
+    "kangaroo valley": { couple: "$600-$1,200", family: "$1,000-$1,900", level: 3, type: "Hidden Gem" },
+    "jervis bay": { couple: "$650-$1,300", family: "$1,100-$2,100", level: 3, type: "Popular Favourite" },
+    "hunter valley": { couple: "$750-$1,600", family: "$1,200-$2,300", level: 3, type: "Popular Favourite" },
+    "mudgee": { couple: "$600-$1,200", family: "$1,000-$1,800", level: 3, type: "Hidden Gem" },
+    "orange": { couple: "$650-$1,300", family: "$1,100-$2,000", level: 3, type: "Popular Favourite" },
+    "seal rocks": { couple: "$500-$1,000", family: "$900-$1,700", level: 2, type: "Hidden Gem" },
+    "forster": { couple: "$550-$1,100", family: "$950-$1,800", level: 2, type: "Popular Favourite" },
+    "bega valley": { couple: "$500-$1,000", family: "$900-$1,600", level: 2, type: "Hidden Gem" },
+};
+function budgetLabel(id) { const b = BUDGETS.find(x => x.id === id); return b ? b.label : "No budget"; }
+function lookupBudget(dest) { const name = (dest.destination || "").toLowerCase(); const key = Object.keys(DESTINATION_BUDGETS).find(k => name.includes(k)); return key ? DESTINATION_BUDGETS[key] : { couple: "$550-$1,200", family: "$950-$1,900", level: 3, type: "Hidden Gem" }; }
+function enrichDestination(dest, ctx = {}) { const base = lookupBudget(dest); const groupType = ctx.group === "family" || ctx.group === "friends" ? "family" : "couple"; const v = VIBES.find(x => x.id === ctx.vibe); const b = BUDGETS.find(x => x.id === ctx.budget); return { ...dest, budget_couple: dest.budget_couple || base.couple, budget_family: dest.budget_family || base.family, budget_level: dest.budget_level || base.level, gem_type: dest.gem_type || base.type, typical_budget: groupType === "family" ? (dest.budget_family || base.family) : (dest.budget_couple || base.couple), why_picked: dest.why_picked || `Picked because it matches your ${v ? v.label.toLowerCase() : "weekend escape"} vibe, is within about ${ctx.distance || "3"} hours of Sydney, and suits your ${b && b.id !== "any" ? b.label + " budget" : "trip"}${ctx.pet ? " with pet-friendly options" : ""}.` }; }
+function budgetFits(dest, budget) { if (!budget || budget === "any" || budget === "2000plus") return true; const level = Number(dest.budget_level || lookupBudget(dest).level || 3); if (budget === "500") return level <= 1; if (budget === "1000") return level <= 2; if (budget === "2000") return level <= 3; return true; }
+function randomFrom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 const ONBOARDING = [
     { emoji: "🏃", title: "Time to skedaddle.", body: "Weekend escape inspiration from Sydney, powered by AI. Find your perfect getaway in seconds.", accent: "#56c88c" },
     { emoji: "✨", title: "Tell us your vibe.", body: "Cabin in the mountains? Beach escape? Hidden gem? Pick your style and we'll handle the rest.", accent: "#ffc850" },
@@ -273,15 +300,18 @@ function SettingsScreen({ currentKey, onSave, onBack }) {
                     React.createElement("button", { onClick: () => clearData(item.k), style: { padding: "6px 12px", borderRadius: 9, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.18)", color: "#ff8080", fontSize: 11, cursor: "pointer", fontWeight: 600, flexShrink: 0, fontFamily: "'DM Sans',sans-serif" } }, "Clear"))))),
             React.createElement("div", { style: card },
                 React.createElement("div", { style: { fontSize: 11, letterSpacing: "0.15em", color: "#56c88c", fontWeight: 700, textTransform: "uppercase", marginBottom: 14 } }, "About"),
-                [{ label: "App", value: "Skedaddle" }, { label: "Version", value: "1.0.0" }, { label: "Model", value: "claude-sonnet-4-6" }].map(row => (React.createElement("div", { key: row.label, style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, marginBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.05)" } },
+                [{ label: "App", value: "Skedaddle" }, { label: "Version", value: "1.5.0" }, { label: "Model", value: "claude-sonnet-4-6" }].map(row => (React.createElement("div", { key: row.label, style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, marginBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.05)" } },
                     React.createElement("span", { style: { fontSize: 13, color: "#6a6560" } }, row.label),
                     React.createElement("span", { style: { fontSize: 13, color: "#c8c3b8", fontWeight: 600 } }, row.value)))))),
         React.createElement(NavBar, { left: React.createElement(NavBtn, { onClick: onBack }, "\u2190 Back") }));
 }
-function DestCard({ dest, index, checkIn, checkOut, guests, pet, favs, been, onFav, onDetail }) {
+function DestCard({ dest, index, checkIn, checkOut, guests, pet, group, budget, favs, been, onFav, onDetail }) {
     const [visible, setVisible] = useState(false);
     const isFav = favs.some(f => f.destination === dest.destination);
     const visited = been.includes(dest.destination);
+    const shownBudget = dest.typical_budget || ((group === "family" || group === "friends") ? dest.budget_family : dest.budget_couple) || lookupBudget(dest).family;
+    const money = dest.typical_budget || ((group === "family" || group === "friends") ? dest.budget_family : dest.budget_couple) || lookupBudget(dest).family;
+    const gem = dest.gem_type || lookupBudget(dest).type;
     useEffect(() => { const t = setTimeout(() => setVisible(true), index * 100); return () => clearTimeout(t); }, []);
     const accent = visited ? "linear-gradient(90deg,#b088ff,#7c50e8)" : isFav ? "linear-gradient(90deg,#ffc850,#ff8c30)" : "linear-gradient(90deg,#56c88c,#2ea868)";
     const bg = visited ? "rgba(168,120,255,0.04)" : isFav ? "rgba(255,200,80,0.04)" : "rgba(255,255,255,0.035)";
@@ -293,12 +323,16 @@ function DestCard({ dest, index, checkIn, checkOut, guests, pet, favs, been, onF
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" } },
                     React.createElement("span", { style: { fontSize: 11, letterSpacing: "0.15em", color: "#56c88c", fontWeight: 700, textTransform: "uppercase" } }, dest.distance_from_sydney),
                     pet && React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(255,200,80,0.15)", color: "#ffc850", border: "1px solid rgba(255,200,80,0.3)", fontWeight: 700 } }, "\uD83D\uDC3E Pet friendly"),
-                    visited && React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(168,120,255,0.15)", color: "#b088ff", border: "1px solid rgba(168,120,255,0.3)", fontWeight: 700 } }, "\u2713 Been here")),
+                    visited && React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 20, background: "rgba(168,120,255,0.15)", color: "#b088ff", border: "1px solid rgba(168,120,255,0.3)", fontWeight: 700 } }, "\u2713 Been here"),
+                    React.createElement("span", { style: { fontSize: 10, padding: "2px 8px", borderRadius: 20, background: gem === "Hidden Gem" ? "rgba(86,200,140,0.12)" : "rgba(255,255,255,0.06)", color: gem === "Hidden Gem" ? "#56c88c" : "#c8c3b8", border: gem === "Hidden Gem" ? "1px solid rgba(86,200,140,0.25)" : "1px solid rgba(255,255,255,0.12)", fontWeight: 700 } }, gem)),
                 React.createElement("h3", { style: { margin: 0, fontSize: 21, fontWeight: 900, color: "#f8f4ee", fontFamily: "'Fraunces',serif", lineHeight: 1.15 } }, dest.destination)),
             React.createElement("div", { style: { display: "flex", gap: 6, marginLeft: 10, flexShrink: 0, alignItems: "center" } },
                 React.createElement("span", { style: { fontSize: 24 } }, dest.emoji),
                 React.createElement("button", { onClick: e => { e.stopPropagation(); onFav(dest); }, style: { width: 32, height: 32, borderRadius: 9, border: "none", background: isFav ? "rgba(255,200,80,0.18)" : "rgba(255,255,255,0.06)", cursor: "pointer", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" } }, isFav ? "⭐" : "☆"))),
         React.createElement("p", { style: { margin: 0, fontSize: 14, color: "#b0aba4", lineHeight: 1.7 } }, dest.why_go),
+        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+            React.createElement("span", { style: { fontSize: 12, padding: "6px 10px", borderRadius: 12, background: "rgba(255,200,80,0.08)", color: "#ffc850", border: "1px solid rgba(255,200,80,0.2)", fontWeight: 700 } }, "💰 Typical weekend: ", money),
+            React.createElement("span", { style: { fontSize: 12, padding: "6px 10px", borderRadius: 12, background: "rgba(86,200,140,0.08)", color: "#56c88c", border: "1px solid rgba(86,200,140,0.18)", fontWeight: 700 } }, gem)),
         React.createElement("div", { style: { display: "flex", gap: 7, flexWrap: "wrap" } }, (dest.best_for || []).map(tag => React.createElement("span", { key: tag, style: { fontSize: 11, padding: "4px 11px", borderRadius: 20, background: "rgba(86,200,140,0.1)", color: "#56c88c", border: "1px solid rgba(86,200,140,0.22)" } }, tag))),
         dest.whats_on && (React.createElement("div", { style: { display: "flex", alignItems: "flex-start", gap: 9, padding: "10px 13px", background: "rgba(176,136,255,0.09)", border: "1px solid rgba(176,136,255,0.22)", borderRadius: 12 } },
             React.createElement("span", { style: { fontSize: 14, flexShrink: 0, marginTop: 1 } }, "\uD83D\uDCC5"),
@@ -309,7 +343,7 @@ function DestCard({ dest, index, checkIn, checkOut, guests, pet, favs, been, onF
             React.createElement("span", { style: { fontSize: 12, color: "#5a5550", fontStyle: "italic" } }, "Tap for details & map"),
             React.createElement("span", { style: { fontSize: 13, color: "#56c88c", fontWeight: 700 } }, "View \u2192")));
 }
-function DetailScreen({ dest, checkIn, checkOut, guests, pet, favs, been, onFav, onBeen, onBack }) {
+function DetailScreen({ dest, checkIn, checkOut, guests, pet, group, budget, favs, been, onFav, onBeen, onBack }) {
     const [shareState, setShareState] = useState(null);
     const isFav = favs.some(f => f.destination === dest.destination);
     const visited = been.includes(dest.destination);
@@ -342,6 +376,13 @@ function DetailScreen({ dest, checkIn, checkOut, guests, pet, favs, been, onFav,
                 React.createElement("h2", { style: { fontFamily: "'Fraunces',serif", fontWeight: 900, fontSize: 34, margin: "0 0 14px", color: "#f8f4ee", letterSpacing: "-0.02em", lineHeight: 1.1 } }, dest.destination),
                 React.createElement("p", { style: { margin: "0 0 14px", fontSize: 15, color: "#b0aba4", lineHeight: 1.75 } }, dest.why_go),
                 React.createElement("div", { style: { display: "flex", gap: 7, flexWrap: "wrap" } }, (dest.best_for || []).map(tag => React.createElement("span", { key: tag, style: { fontSize: 11, padding: "4px 11px", borderRadius: 20, background: "rgba(86,200,140,0.1)", color: "#56c88c", border: "1px solid rgba(86,200,140,0.22)" } }, tag)))),
+            React.createElement("div", { style: { background: "rgba(255,200,80,0.06)", border: "1px solid rgba(255,200,80,0.2)", borderRadius: 16, padding: "16px 18px", marginBottom: 14 } },
+                React.createElement("div", { style: { fontSize: 11, letterSpacing: "0.15em", color: "#ffc850", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 } }, "Typical weekend budget"),
+                React.createElement("div", { style: { fontSize: 22, color: "#f8f4ee", fontWeight: 900, marginBottom: 6 } }, shownBudget),
+                React.createElement("div", { style: { fontSize: 13, color: "#9a958f", lineHeight: 1.5 } }, "Rough planning range for accommodation, fuel, meals and one paid activity. Not a live quote.")),
+            dest.why_picked && React.createElement("div", { style: { background: "rgba(86,200,140,0.06)", border: "1px solid rgba(86,200,140,0.18)", borderRadius: 16, padding: "16px 18px", marginBottom: 14 } },
+                React.createElement("div", { style: { fontSize: 11, letterSpacing: "0.15em", color: "#56c88c", fontWeight: 700, textTransform: "uppercase", marginBottom: 8 } }, "Why we picked this"),
+                React.createElement("p", { style: { margin: 0, fontSize: 14, color: "#c8c3b4", lineHeight: 1.7 } }, dest.why_picked)),
             dest.whats_on && React.createElement("div", { style: { background: "rgba(176,136,255,0.08)", border: "1px solid rgba(176,136,255,0.25)", borderRadius: 16, padding: "16px 18px", marginBottom: 14 } },
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginBottom: 8 } },
                     React.createElement("span", { style: { fontSize: 18 } }, "\uD83D\uDCC5"),
@@ -371,7 +412,7 @@ function DetailScreen({ dest, checkIn, checkOut, guests, pet, favs, been, onFav,
                 React.createElement("a", { href: buildStayzUrl(dest.destination, checkIn, checkOut, guests, pet), target: "_blank", style: { display: "block", textAlign: "center", padding: 15, background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.13)", color: "#f0ede6", borderRadius: 13, fontWeight: 700, fontSize: 14, textDecoration: "none" } }, "Stayz \u2192"))),
         React.createElement(NavBar, { left: React.createElement(NavBtn, { onClick: onBack }, "\u2190 Results") }));
 }
-function SavedScreen({ favs, been, onFav, onBeen, onBack, onSettings }) {
+function SavedScreen({ favs, been, onFav, onBeen, onBack, onSettings, onDetail }) {
     const nw = getNextWeekend();
     return React.createElement("div", { style: BG },
         React.createElement(Orbs, null),
@@ -379,13 +420,14 @@ function SavedScreen({ favs, been, onFav, onBeen, onBack, onSettings }) {
             React.createElement("div", { style: { fontSize: 11, letterSpacing: "0.2em", color: "#ffc850", textTransform: "uppercase", fontWeight: 700, marginBottom: 8 } }, "Saved spots"),
             React.createElement("h2", { style: { fontFamily: "'Fraunces',serif", fontSize: 32, fontWeight: 900, margin: "0 0 6px", color: "#f8f4ee", letterSpacing: "-0.02em" } }, "Your bolthole list"),
             React.createElement("p", { style: { fontSize: 14, color: "#7a7570", margin: "0 0 28px" } }, favs.length === 0 ? "Nothing saved yet — star a destination." : `${favs.length} place${favs.length !== 1 ? "s" : ""} on your list`),
-            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 18 } }, favs.map((dest, i) => React.createElement(DestCard, { key: dest.destination, dest: dest, index: i, checkIn: nw.checkIn, checkOut: nw.checkOut, guests: 2, pet: false, favs: favs, been: been, onFav: onFav, onDetail: () => { } })))),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 18 } }, favs.map((dest, i) => React.createElement(DestCard, { key: dest.destination, dest: dest, index: i, checkIn: nw.checkIn, checkOut: nw.checkOut, guests: 2, pet: false, group: "couple", budget: "any", favs: favs, been: been, onFav: onFav, onDetail: onDetail })))),
         React.createElement(NavBar, { left: React.createElement(NavBtn, { onClick: onBack }, "\u2190 Back"), right: React.createElement(NavBtn, { onClick: onSettings }, "\u2699\uFE0F Settings") }));
 }
 function App() {
     const [screen, setScreen] = useState("home");
     const [prevScreen, setPrev] = useState("home");
     const [detailDest, setDetail] = useState(null);
+    const [detailBack, setDetailBack] = useState("results");
     const [vibe, setVibe] = useState(null);
     const [distance, setDist] = useState("3");
     const [group, setGroup] = useState("couple");
@@ -397,6 +439,7 @@ function App() {
     const [error, setError] = useState(null);
     const [statusMsg, setStatus] = useState("");
     const [pet, setPet] = useState(false);
+    const [budget, setBudget] = useState("any");
     const [apiKey, setApiKey] = useState(() => ls.str("skedaddle_apikey", ""));
     const [onboarded, setOnboarded] = useState(() => ls.get("skedaddle_onboarded", false));
     const [favs, setFavs] = useState(() => ls.get("skedaddle_favs", []));
@@ -416,25 +459,32 @@ function App() {
         ls.set("skedaddle_been", next);
         setBeen(next);
     }
+    function surpriseMe() {
+        if (!DEMO_MODE && !apiKey) { goSettings(); return; }
+        const rv = randomFrom(VIBES).id, rd = randomFrom(DISTANCES).id, rg = randomFrom(GROUPS).id, rb = randomFrom(BUDGETS).id;
+        setVibe(rv); setDist(rd); setGroup(rg); setBudget(rb);
+        runFetch({ vibe: rv, distance: rd, group: rg, budget: rb });
+    }
     async function runFetch(ov = {}) {
         const uv = ov.vibe !== undefined ? ov.vibe : vibe, ud = ov.distance !== undefined ? ov.distance : distance;
         const ug = ov.group !== undefined ? ov.group : group, uci = ov.checkIn !== undefined ? ov.checkIn : checkIn;
         const uco = ov.checkOut !== undefined ? ov.checkOut : checkOut, up = ov.pet !== undefined ? ov.pet : pet;
+        const ub = ov.budget !== undefined ? ov.budget : budget;
         const vObj = VIBES.find(x => x.id === uv), gObj = GROUPS.find(x => x.id === ug);
         setLoading(true);
         setError(null);
         setResults(null);
         setScreen("results");
-        const entry = { vibe: uv, distance: ud, group: ug, checkIn: uci, checkOut: uco, pet: up };
-        const newH = [entry, ...history.filter(h => !(h.vibe === uv && h.distance === ud && h.group === ug))].slice(0, 3);
+        const entry = { vibe: uv, distance: ud, group: ug, checkIn: uci, checkOut: uco, pet: up, budget: ub };
+        const newH = [entry, ...history.filter(h => !(h.vibe === uv && h.distance === ud && h.group === ug && h.budget === ub))].slice(0, 3);
         ls.set("skedaddle_history", newH);
         setHistory(newH);
-        const prompt = `You are a local Sydney travel expert. It's ${season.name} in Sydney, Australia.\n${WORKER_URL ? "Use web search to find current events and conditions for these dates." : ""}\nSuggest weekend getaway destinations:\n- Vibe: ${vObj ? vObj.label : ""}\n- Max drive: ${ud} hours\n- Group: ${gObj ? gObj.label : ""} (${gObj ? gObj.guests : 2} guests)\n- Dates: ${uci} to ${uco}\n- Pet friendly: ${up ? "YES" : "No"}\n- Skip visited: ${been.length > 0 ? been.join(", ") : "none"}\nReturn ONLY a valid JSON array of exactly 6 objects, no markdown:\n[{"destination":"Name","emoji":"e","distance_from_sydney":"X hrs drive","why_go":"2-3 sentences","best_for":["t1","t2","t3"],"insider_tip":"tip","things_to_do":["t1","t2","t3"],"whats_on":"one current local event or market happening this specific weekend, or empty string if nothing notable"}]`;
+        const prompt = `You are a local Sydney travel expert. It's ${season.name} in Sydney, Australia.\n${WORKER_URL ? "Use web search to find current events and conditions for these dates." : ""}\nSuggest weekend getaway destinations:\n- Vibe: ${vObj ? vObj.label : ""}\n- Max drive: ${ud} hours\n- Group: ${gObj ? gObj.label : ""} (${gObj ? gObj.guests : 2} guests)\n- Dates: ${uci} to ${uco}\n- Pet friendly: ${up ? "YES" : "No"}\n- Budget: ${budgetLabel(ub)}\n- Skip visited: ${been.length > 0 ? been.join(", ") : "none"}\nReturn ONLY a valid JSON array of exactly 6 objects, no markdown:\n[{"destination":"Name","emoji":"e","distance_from_sydney":"X hrs drive","why_go":"2-3 sentences","best_for":["t1","t2","t3"],"insider_tip":"tip","things_to_do":["t1","t2","t3"],"whats_on":"one current local event or market happening this specific weekend, or empty string if nothing notable","budget_couple":"$500-$1000","budget_family":"$900-$1800","budget_level":2,"gem_type":"Hidden Gem or Popular Favourite","why_picked":"one sentence explaining why this matches the selected vibe, group, drive time and budget"}]`;
         setStatus("Finding your next skedaddle...");
         // Demo mode — returns mock data without hitting the API
         if (DEMO_MODE) {
             const mock = await getMockResults();
-            setResults(mock);
+            setResults(mock.map(d => enrichDestination(d, { vibe: uv, distance: ud, group: ug, pet: up, budget: ub })).filter(d => budgetFits(d, ub)).slice(0, 6));
             setLoading(false);
             setStatus("");
             return;
@@ -471,7 +521,7 @@ function App() {
                 setStatus("");
                 return;
             }
-            setResults(JSON.parse(match[0]));
+            setResults(JSON.parse(match[0]).map(d => enrichDestination(d, { vibe: uv, distance: ud, group: ug, pet: up, budget: ub })).filter(d => budgetFits(d, ub)).slice(0, 6));
         }
         catch (_a) {
             setError("Can't reach Anthropic — check your connection.");
@@ -484,9 +534,9 @@ function App() {
     if (screen === "settings")
         return React.createElement(SettingsScreen, { currentKey: apiKey, onSave: k => setApiKey(k), onBack: () => setScreen(prevScreen || "home") });
     if (screen === "saved")
-        return React.createElement(SavedScreen, { favs: favs, been: been, onFav: toggleFav, onBeen: toggleBeen, onBack: () => setScreen("home"), onSettings: goSettings });
+        return React.createElement(SavedScreen, { favs: favs, been: been, onFav: toggleFav, onBeen: toggleBeen, onBack: () => setScreen("home"), onSettings: goSettings, onDetail: (dest) => { setDetail(dest); setDetailBack("saved"); setScreen("detail"); } });
     if (screen === "detail" && detailDest)
-        return React.createElement(DetailScreen, { dest: detailDest, checkIn: checkIn, checkOut: checkOut, guests: selG ? selG.guests : 2, pet: pet, favs: favs, been: been, onFav: toggleFav, onBeen: toggleBeen, onBack: () => setScreen("results") });
+        return React.createElement(DetailScreen, { dest: detailDest, checkIn: checkIn, checkOut: checkOut, guests: selG ? selG.guests : 2, pet: pet, group: group, budget: budget, favs: favs, been: been, onFav: toggleFav, onBeen: toggleBeen, onBack: () => setScreen(detailBack || "results") });
     if (screen === "home")
         return React.createElement("div", { style: BG },
             React.createElement(Orbs, null),
@@ -512,12 +562,13 @@ function App() {
                     "Time to",
                     React.createElement("br", null),
                     React.createElement("span", { style: { color: "#56c88c" } }, "skedaddle.")),
-                React.createElement("p", { style: { fontSize: 15, color: "#7a7570", lineHeight: 1.7, margin: "0 0 36px", maxWidth: 320 } }, "Tell us your vibe. We'll find where to bolt to this weekend \u2014 fresh ideas every time."),
+                React.createElement("p", { style: { fontSize: 15, color: "#7a7570", lineHeight: 1.7, margin: "0 0 20px", maxWidth: 320 } }, "Tell us your vibe. We'll find where to bolt to this weekend \u2014 fresh ideas every time."),
+                React.createElement("button", { onClick: surpriseMe, style: { width: "100%", padding: "15px 18px", borderRadius: 15, background: "rgba(176,136,255,0.1)", border: "1px solid rgba(176,136,255,0.25)", color: "#d8c8ff", cursor: "pointer", fontSize: 15, fontWeight: 800, fontFamily: "'DM Sans',sans-serif", marginBottom: 28 } }, "🎲 Surprise me this weekend"),
                 history.length > 0 && React.createElement("div", { style: { marginBottom: 32 } },
                     React.createElement("div", { style: { fontSize: 11, letterSpacing: "0.18em", color: "#56c88c", textTransform: "uppercase", marginBottom: 13, fontWeight: 700 } }, "Recent searches"),
                     history.map((e, i) => {
                         const v = VIBES.find(x => x.id === e.vibe), g = GROUPS.find(x => x.id === e.group);
-                        return React.createElement("button", { key: i, onClick: () => { setVibe(e.vibe); setDist(e.distance); setGroup(e.group); setCI(e.checkIn); setCO(e.checkOut); setPet(e.pet || false); runFetch(e); }, style: { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left", width: "100%", marginBottom: 8, fontFamily: "'DM Sans',sans-serif" } },
+                        return React.createElement("button", { key: i, onClick: () => { setVibe(e.vibe); setDist(e.distance); setGroup(e.group); setCI(e.checkIn); setCO(e.checkOut); setPet(e.pet || false); setBudget(e.budget || "any"); runFetch(e); }, style: { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", textAlign: "left", width: "100%", marginBottom: 8, fontFamily: "'DM Sans',sans-serif" } },
                             React.createElement("span", { style: { fontSize: 22, flexShrink: 0 } }, v ? v.emoji : ""),
                             React.createElement("div", { style: { flex: 1, minWidth: 0 } },
                                 React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: "#c8c3b8", marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
@@ -558,6 +609,11 @@ function App() {
                     React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } }, VIBES.map(v => React.createElement(OptionCard, { key: v.id, selected: vibe === v.id, onClick: () => setVibe(v.id) },
                         React.createElement("span", { style: { fontSize: 24 } }, v.emoji),
                         React.createElement("span", { style: { fontSize: 13, fontWeight: 600, textAlign: "center" } }, v.label))))),
+                React.createElement(Section, { label: "What's your budget?" },
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } }, BUDGETS.map(b => React.createElement(OptionCard, { key: b.id, selected: budget === b.id, onClick: () => setBudget(b.id) },
+                        React.createElement("span", { style: { fontSize: 22 } }, "💰"),
+                        React.createElement("span", { style: { fontSize: 13, fontWeight: 700, textAlign: "center" } }, b.label),
+                        React.createElement("span", { style: { fontSize: 11, color: "#6a6560", textAlign: "center" } }, b.desc))))),
                 React.createElement(Section, { label: "Any extras?" },
                     React.createElement("button", { onClick: () => setPet(p => !p), style: { width: "100%", padding: "16px 20px", borderRadius: 14, background: pet ? "rgba(255,200,80,0.1)" : "rgba(255,255,255,0.04)", border: pet ? "1px solid rgba(255,200,80,0.4)" : "1px solid rgba(255,255,255,0.08)", color: pet ? "#ffc850" : "#9a958f", cursor: "pointer", display: "flex", alignItems: "center", gap: 14, transition: "all 0.2s", fontFamily: "'DM Sans',sans-serif" } },
                         React.createElement("span", { style: { fontSize: 26 } }, "\uD83D\uDC3E"),
@@ -579,7 +635,8 @@ function App() {
                     distance,
                     "hr \u00B7 ",
                     selG ? selG.label : "",
-                    pet ? " · 🐾" : ""),
+                    pet ? " · 🐾" : "",
+                    budget && budget !== "any" ? ` · ${budgetLabel(budget)}` : ""),
                 React.createElement("h2", { style: { fontFamily: "'Fraunces',serif", fontSize: 32, fontWeight: 900, margin: 0, color: "#f8f4ee", letterSpacing: "-0.02em" } }, "Time to skedaddle!"),
                 DEMO_MODE && React.createElement("div", { style: { marginTop: 10, padding: "8px 14px", background: "rgba(255,200,80,0.1)", border: "1px solid rgba(255,200,80,0.25)", borderRadius: 10, fontSize: 12, color: "#ffc850" } }, "\uD83E\uDDEA Demo mode \u2014 sample destinations, no API needed"),
                 !DEMO_MODE && WORKER_URL && React.createElement("div", { style: { marginTop: 10, padding: "8px 14px", background: "rgba(176,136,255,0.1)", border: "1px solid rgba(176,136,255,0.25)", borderRadius: 10, fontSize: 12, color: "#b088ff" } }, "\uD83D\uDD0D Live web search enabled")),
@@ -591,7 +648,7 @@ function App() {
                 React.createElement("div", { style: { color: "#9a958f", marginBottom: 24, fontSize: 14, lineHeight: 1.6 } }, error),
                 React.createElement("button", { onClick: () => runFetch(), style: { padding: "12px 28px", borderRadius: 12, background: "#56c88c", color: "#071a10", border: "none", cursor: "pointer", fontWeight: 700, fontFamily: "'DM Sans',sans-serif" } }, "Try again")),
             results && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
-                results.map((dest, i) => React.createElement(DestCard, { key: i, dest: dest, index: i, checkIn: checkIn, checkOut: checkOut, guests: selG ? selG.guests : 2, pet: pet, favs: favs, been: been, onFav: toggleFav, onDetail: d => { setDetail(d); setScreen("detail"); } })),
+                results.map((dest, i) => React.createElement(DestCard, { key: i, dest: dest, index: i, checkIn: checkIn, checkOut: checkOut, guests: selG ? selG.guests : 2, pet: pet, group: group, budget: budget, favs: favs, been: been, onFav: toggleFav, onDetail: d => { setDetail(d); setDetailBack("results"); setScreen("detail"); } })),
                 React.createElement("button", { onClick: () => runFetch(), style: { marginTop: 8, padding: 16, borderRadius: 14, background: "rgba(86,200,140,0.08)", border: "1px solid rgba(86,200,140,0.22)", color: "#56c88c", cursor: "pointer", fontSize: 15, fontWeight: 700, fontFamily: "'DM Sans',sans-serif" } }, "\uD83C\uDFC3 Skedaddle somewhere else"))),
         React.createElement(NavBar, { left: React.createElement(NavBtn, { onClick: () => setScreen("filters") }, "\u2190 Filters"), center: React.createElement(SavedBadge, { count: favs.length, onClick: () => setScreen("saved") }), right: React.createElement(NavBtn, { onClick: goSettings }, "\u2699\uFE0F") }));
 }
