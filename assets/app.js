@@ -300,7 +300,7 @@ function SettingsScreen({ currentKey, onSave, onBack }) {
                     React.createElement("button", { onClick: () => clearData(item.k), style: { padding: "6px 12px", borderRadius: 9, background: "rgba(255,80,80,0.08)", border: "1px solid rgba(255,80,80,0.18)", color: "#ff8080", fontSize: 11, cursor: "pointer", fontWeight: 600, flexShrink: 0, fontFamily: "'DM Sans',sans-serif" } }, "Clear"))))),
             React.createElement("div", { style: card },
                 React.createElement("div", { style: { fontSize: 11, letterSpacing: "0.15em", color: "#56c88c", fontWeight: 700, textTransform: "uppercase", marginBottom: 14 } }, "About"),
-                [{ label: "App", value: "Skedaddle" }, { label: "Version", value: "1.5.0" }, { label: "Model", value: "claude-sonnet-4-6" }].map(row => (React.createElement("div", { key: row.label, style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, marginBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.05)" } },
+                [{ label: "App", value: "Skedaddle" }, { label: "Version", value: "1.5.2" }, { label: "Model", value: "claude-sonnet-4-6" }].map(row => (React.createElement("div", { key: row.label, style: { display: "flex", justifyContent: "space-between", alignItems: "center", paddingBottom: 10, marginBottom: 10, borderBottom: "1px solid rgba(255,255,255,0.05)" } },
                     React.createElement("span", { style: { fontSize: 13, color: "#6a6560" } }, row.label),
                     React.createElement("span", { style: { fontSize: 13, color: "#c8c3b8", fontWeight: 600 } }, row.value)))))),
         React.createElement(NavBar, { left: React.createElement(NavBtn, { onClick: onBack }, "\u2190 Back") }));
@@ -341,12 +341,16 @@ function DestCard({ dest, index, checkIn, checkOut, guests, pet, group, budget, 
                 React.createElement("div", { style: { fontSize: 13, color: "#d0c8f0", lineHeight: 1.5 } }, dest.whats_on)))),
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 2 } },
             React.createElement("span", { style: { fontSize: 12, color: "#5a5550", fontStyle: "italic" } }, "Tap for details & map"),
-            React.createElement("span", { style: { fontSize: 13, color: "#56c88c", fontWeight: 700 } }, "View \u2192")));
+            React.createElement("button", { onClick: e => { e.stopPropagation(); onDetail(dest); }, style: { fontSize: 13, color: "#56c88c", fontWeight: 800, background: "rgba(86,200,140,0.10)", border: "1px solid rgba(86,200,140,0.25)", borderRadius: 999, padding: "7px 12px", cursor: "pointer", fontFamily: "'DM Sans',sans-serif" } }, "View →")));
 }
 function DetailScreen({ dest, checkIn, checkOut, guests, pet, group, budget, favs, been, onFav, onBeen, onBack }) {
     const [shareState, setShareState] = useState(null);
     const isFav = favs.some(f => f.destination === dest.destination);
     const visited = been.includes(dest.destination);
+    const shownBudget = dest.typical_budget || ((group === "family" || group === "friends") ? dest.budget_family : dest.budget_couple) || lookupBudget(dest).family;
+    const gem = dest.gem_type || lookupBudget(dest).type;
+    const safeDest = { emoji: dest.emoji || "🌿", destination: dest.destination || "Weekend escape", distance_from_sydney: dest.distance_from_sydney || "From Sydney", why_go: dest.why_go || "A curated weekend escape from Sydney.", insider_tip: dest.insider_tip || "Check accommodation availability before booking.", things_to_do: dest.things_to_do || [], best_for: dest.best_for || [] };
+    dest = { ...safeDest, ...dest };
     async function doShare() {
         const url = buildAirbnbUrl(dest.destination, checkIn, checkOut, guests, pet);
         const text = `${dest.emoji} ${dest.destination} — ${dest.distance_from_sydney} from Sydney\n\n${dest.why_go}\n\n💡 ${dest.insider_tip}\n\nAirbnb: ${url}`;
