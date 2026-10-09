@@ -9,8 +9,6 @@
   <meta name="apple-mobile-web-app-title" content="Skedaddle" />
   <title>Skedaddle 🏃</title>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
@@ -274,58 +272,77 @@ function LocalCard(props) {
   );
 }
 
-// ── MAP PICKER ───────────────────────────────────────────────
-function MapPicker(props) {
-  // props: centerLat, centerLon, onPick(suburbName)
-  var mapRef = useRef(null);
-  var mapObjRef = useRef(null);
-  var markerRef = useRef(null);
-  var pendingRef = useRef(false);
+// ── SUBURB AUTOCOMPLETE ───────────────────────────────────────
+function SuburbAutocomplete(props) {
+  // props: value, onChange(displayName), onSelect(displayName)
+  var sug = useState([]); var suggestions=sug[0],setSuggestions=sug[1];
+  var loading = useState(false); var isLoading=loading[0],setIsLoading=loading[1];
+  var open = useState(false); var isOpen=open[0],setIsOpen=open[1];
+  var timerRef = useRef(null);
+  var wrapRef = useRef(null);
 
-  useEffect(function(){
-    if (mapObjRef.current) return; // already initialised
-    var lat = props.centerLat || -33.8688;
-    var lon = props.centerLon || 151.2093;
-    var m = L.map(mapRef.current, { zoomControl:true, attributionControl:false }).setView([lat,lon], 14);
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-      maxZoom:19, subdomains:"abcd"
-    }).addTo(m);
-    // Custom green marker
-    var icon = L.divIcon({
-      html:"<div style='width:22px;height:22px;background:#56c88c;border-radius:50%;border:3px solid #fff;box-shadow:0 0 10px rgba(86,200,140,0.7);'></div>",
-      className:"", iconSize:[22,22], iconAnchor:[11,11]
-    });
-    m.on("click", function(e){
-      if (pendingRef.current) return;
-      pendingRef.current = true;
-      var latlng = e.latlng;
-      if (markerRef.current) { markerRef.current.setLatLng(latlng); }
-      else { markerRef.current = L.marker(latlng,{icon:icon}).addTo(m); }
-      fetch("https://nominatim.openstreetmap.org/reverse?lat="+latlng.lat+"&lon="+latlng.lng+"&format=json")
+  function search(q) {
+    if (q.length < 2) { setSuggestions([]); setIsOpen(false); return; }
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(function(){
+      setIsLoading(true);
+      fetch("https://nominatim.openstreetmap.org/search?q="+encodeURIComponent(q)+"&format=json&addressdetails=1&limit=6&countrycodes=au")
         .then(function(r){ return r.json(); })
-        .then(function(d){
-          var s = (d.address&&(d.address.suburb||d.address.town||d.address.city_district||d.address.city))||"";
-          if (s) props.onPick(s);
-          pendingRef.current = false;
+        .then(function(results){
+          var mapped = results.map(function(r){
+            var a = r.address||{};
+            var suburb = a.suburb||a.town||a.city_district||a.village||a.municipality||"";
+            var state  = a.state_district||a.state||"";
+            var display = suburb ? (suburb+(state?" · "+state:"")) : r.display_name.split(",").slice(0,2).join(",").trim();
+            return { display:display, suburb:suburb||display };
+          }).filter(function(r,i,arr){
+            return r.display && arr.findIndex(function(x){ return x.display===r.display; })===i;
+          });
+          setSuggestions(mapped);
+          setIsOpen(mapped.length > 0);
+          setIsLoading(false);
         })
-        .catch(function(){ pendingRef.current = false; });
-    });
-    mapObjRef.current = m;
+        .catch(function(){ setIsLoading(false); });
+    }, 300);
+  }
+
+  // Close dropdown on outside click
+  useEffect(function(){
+    function handler(e){ if(wrapRef.current && !wrapRef.current.contains(e.target)){ setIsOpen(false); } }
+    document.addEventListener("mousedown", handler);
+    return function(){ document.removeEventListener("mousedown", handler); };
   }, []);
 
-  // Re-centre when GPS coords arrive
-  useEffect(function(){
-    if (!mapObjRef.current) return;
-    if (props.centerLat && props.centerLon) {
-      mapObjRef.current.setView([props.centerLat, props.centerLon], 14, {animate:true});
-    }
-  }, [props.centerLat, props.centerLon]);
-
-  return React.createElement("div", { ref:mapRef, style:{
-    width:"100%", height:220, borderRadius:14, overflow:"hidden",
-    border:"1px solid rgba(86,200,140,0.3)", marginTop:8,
-    cursor:"crosshair", position:"relative"
-  }});
+  return React.createElement("div", { ref:wrapRef, style:{ position:"relative" } },
+    React.createElement("div", { style:{ position:"relative" } },
+      React.createElement("input", {
+        type:"text",
+        placeholder:"e.g. Newtown, Manly, Surry Hills...",
+        value:props.value,
+        autoFocus:true,
+        onChange:function(e){ props.onChange(e.target.value); search(e.target.value); },
+        onFocus:function(){ if(suggestions.length) setIsOpen(true); },
+        onKeyDown:function(e){
+          if(e.key==="Escape"){ setIsOpen(false); }
+          if(e.key==="Enter"&&props.value.trim()){ setIsOpen(false); props.onSelect(props.value.trim()); }
+        },
+        style:{ width:"100%",padding:"12px 38px 12px 14px",borderRadius:12,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(86,200,140,0.35)",color:"#f0ede6",fontSize:15,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }
+      }),
+      isLoading && React.createElement("div", { style:{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:14,animation:"pulse 1s infinite" } }, "⏳")
+    ),
+    isOpen && React.createElement("div", { style:{ position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#1a2a22",border:"1px solid rgba(86,200,140,0.25)",borderRadius:12,overflow:"hidden",zIndex:100,boxShadow:"0 8px 32px rgba(0,0,0,0.5)" } },
+      suggestions.map(function(s,i){
+        return React.createElement("div", {
+          key:i,
+          onMouseDown:function(e){ e.preventDefault(); props.onSelect(s.suburb); setSuggestions([]); setIsOpen(false); },
+          style:{ padding:"11px 16px",fontSize:14,color:"#f0ede6",cursor:"pointer",borderBottom:i<suggestions.length-1?"1px solid rgba(255,255,255,0.05)":"none",display:"flex",alignItems:"center",gap:10 }
+        },
+          React.createElement("span", { style:{ fontSize:14,flexShrink:0 } }, "📍"),
+          React.createElement("span", null, s.display)
+        );
+      })
+    )
+  );
 }
 
 // ── HOME SCREEN ──────────────────────────────────────────────
@@ -336,14 +353,11 @@ function HomeScreen(props) {
   var locErr = useState(false); var locError=locErr[0],setLocError=locErr[1];
   var manMode = useState(false); var manualMode=manMode[0],setManualMode=manMode[1];
   var manInp = useState(""); var manualInput=manInp[0],setManualInput=manInp[1];
-  var gpsCoords = useState(null); var coords=gpsCoords[0],setCoords=gpsCoords[1];
-
   useEffect(function(){
     if (!navigator.geolocation) { setLocError(true); setLocLoading(false); setManualMode(true); return; }
     navigator.geolocation.getCurrentPosition(
       function(pos) {
         var lat=pos.coords.latitude, lon=pos.coords.longitude;
-        setCoords({lat:lat,lon:lon});
         fetch("https://nominatim.openstreetmap.org/reverse?lat="+lat+"&lon="+lon+"&format=json")
           .then(function(r){ return r.json(); })
           .then(function(d){
@@ -384,7 +398,7 @@ function HomeScreen(props) {
           React.createElement("button", {
             onClick:function(){ setManualMode(function(m){return !m;}); },
             style:{ background:"none",border:"none",fontSize:11,color:"#56c88c",cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif",fontWeight:600 }
-          }, manualMode?"Use my location ↩":"Pick on map →")
+          }, manualMode?"Use my location ↩":"Change →")
         ),
         !manualMode && React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:10 } },
           React.createElement("span", { style:{ fontSize:22 } }, locLoading?"⏳":locError?"❌":"📍"),
@@ -393,20 +407,11 @@ function HomeScreen(props) {
             !locError && !locLoading && React.createElement("div", { style:{ fontSize:12,color:"#5a7560",marginTop:2 } }, "Detected automatically")
           )
         ),
-        manualMode && React.createElement("div", null,
-          // Selected suburb pill
-          manualInput && React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:8,marginBottom:8 } },
-            React.createElement("span", { style:{ fontSize:14 } }, "📍"),
-            React.createElement("span", { style:{ fontSize:15,fontWeight:700,color:"#f8f4ee" } }, manualInput),
-            React.createElement("span", { style:{ fontSize:11,color:"#5a7560" } }, "— tap the map to change")
-          ),
-          !manualInput && React.createElement("div", { style:{ fontSize:12,color:"#7a7570",marginBottom:8 } }, "Tap anywhere on the map to pick your suburb"),
-          React.createElement(MapPicker, {
-            centerLat: coords ? coords.lat : -33.8688,
-            centerLon: coords ? coords.lon : 151.2093,
-            onPick: function(s){ setManualInput(s); setSuburb(s); }
-          })
-        ),
+        manualMode && React.createElement(SuburbAutocomplete, {
+          value: manualInput,
+          onChange: function(v){ setManualInput(v); setSuburb(v); },
+          onSelect: function(s){ setManualInput(s); setSuburb(s); }
+        }),
         locError && !manualMode && React.createElement("button", { onClick:function(){ setManualMode(true); }, style:{ marginTop:10,fontSize:12,color:"#56c88c",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif" } }, "Enter suburb manually →")
       ),
 
