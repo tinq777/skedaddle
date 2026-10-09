@@ -216,13 +216,35 @@ function SettingsScreen(props) {
   );
 }
 
+// ── FAVOURITES HELPERS ────────────────────────────────────────
+function favKey(item) { return (item.name||"")+"__"+(item.type||item.when||""); }
+
+function HeartBtn(props) {
+  // props: saved, onToggle
+  var pressed = useState(false); var isPressed=pressed[0],setIsPressed=pressed[1];
+  function handleClick(e) {
+    e.preventDefault(); e.stopPropagation();
+    setIsPressed(true);
+    setTimeout(function(){ setIsPressed(false); }, 200);
+    props.onToggle();
+  }
+  return React.createElement("button", {
+    onClick:handleClick,
+    style:{ background:"none",border:"none",cursor:"pointer",padding:"4px 6px",fontSize:18,lineHeight:1,
+      transform:isPressed?"scale(1.4)":"scale(1)", transition:"transform 0.15s cubic-bezier(0.34,1.56,0.64,1)",
+      flexShrink:0, color: props.saved ? "#ff6b8a" : "#5a5550"
+    }
+  }, props.saved ? "♥" : "♡");
+}
+
 // ── EATS CARD ────────────────────────────────────────────────
 function EatCard(props) {
   var dest = props.place;
   var vis = useState(false); var visible=vis[0],setVisible=vis[1];
+  var saved = props.favs && props.favs[favKey(dest)];
   useEffect(function(){ var t=setTimeout(function(){setVisible(true);},props.index*80); return function(){clearTimeout(t);}; },[]);
   return React.createElement("div", {
-    style:{ opacity:visible?1:0, transform:visible?"translateY(0)":"translateY(20px)", transition:"all 0.45s cubic-bezier(0.22,1,0.36,1)", background:"rgba(255,255,255,0.035)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:18, padding:18, position:"relative", overflow:"hidden" }
+    style:{ opacity:visible?1:0, transform:visible?"translateY(0)":"translateY(20px)", transition:"all 0.45s cubic-bezier(0.22,1,0.36,1)", background:"rgba(255,255,255,0.035)", border: saved?"1px solid rgba(255,107,138,0.3)":"1px solid rgba(255,255,255,0.08)", borderRadius:18, padding:18, position:"relative", overflow:"hidden" }
   },
     React.createElement("div", { style:{ position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,#56c88c,#2ea868)" } }),
     React.createElement("div", { style:{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 } },
@@ -233,7 +255,10 @@ function EatCard(props) {
         ),
         React.createElement("div", { style:{ fontSize:12,color:"#7a7570",marginBottom:4 } }, dest.type+" · "+dest.price+" · "+dest.hours)
       ),
-      React.createElement(ConfidenceBadge, { score:dest.confidence })
+      React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:6 } },
+        React.createElement(HeartBtn, { saved:saved, onToggle:function(){ props.onToggleFav(dest,"eat"); } }),
+        React.createElement(ConfidenceBadge, { score:dest.confidence })
+      )
     ),
     React.createElement("p", { style:{ margin:"0 0 10px",fontSize:13,color:"#b0aba4",lineHeight:1.6 } }, dest.why),
     React.createElement("div", { style:{ display:"flex",alignItems:"center",justifyContent:"space-between" } },
@@ -248,27 +273,33 @@ function EatCard(props) {
 // ── EVENT CARD ───────────────────────────────────────────────
 function EventCard(props) {
   var ev = props.event;
-  return React.createElement("div", { style:{ display:"flex",gap:14,padding:"14px 0",borderBottom:"1px solid rgba(255,255,255,0.05)" } },
+  var saved = props.favs && props.favs[favKey(ev)];
+  return React.createElement("div", { style:{ display:"flex",gap:14,padding:"14px 0",borderBottom:"1px solid rgba(255,255,255,0.05)",alignItems:"flex-start" } },
     React.createElement("div", { style:{ fontSize:28,flexShrink:0,width:36,textAlign:"center" } }, ev.emoji),
     React.createElement("div", { style:{ flex:1,minWidth:0 } },
       React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:3 } }, ev.name),
       React.createElement("div", { style:{ fontSize:12,color:"#56c88c",fontWeight:600,marginBottom:4 } }, ev.when+" · "+ev.where),
       React.createElement("div", { style:{ fontSize:13,color:"#7a7570",lineHeight:1.5 } }, ev.desc)
-    )
+    ),
+    React.createElement(HeartBtn, { saved:saved, onToggle:function(){ props.onToggleFav(ev,"event"); } })
   );
 }
 
 // ── LOCAL CARD ───────────────────────────────────────────────
 function LocalCard(props) {
   var pl = props.place;
-  return React.createElement("div", { style:{ display:"flex",gap:12,padding:"12px 0",borderBottom:"1px solid rgba(255,255,255,0.05)" } },
+  var saved = props.favs && props.favs[favKey(pl)];
+  return React.createElement("div", { style:{ display:"flex",gap:12,padding:"12px 0",borderBottom:"1px solid rgba(255,255,255,0.05)",alignItems:"center" } },
     React.createElement("div", { style:{ fontSize:24,flexShrink:0,width:32,textAlign:"center",paddingTop:2 } }, pl.emoji),
     React.createElement("div", { style:{ flex:1,minWidth:0 } },
       React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:2 } }, pl.name),
       React.createElement("div", { style:{ fontSize:11,color:"#b088ff",fontWeight:600,marginBottom:4 } }, pl.type+(pl.suburb?" · "+pl.suburb:"")),
       React.createElement("div", { style:{ fontSize:13,color:"#7a7570",lineHeight:1.5 } }, pl.desc)
     ),
-    pl.maps && React.createElement("a", { href:pl.maps, target:"_blank", style:{ fontSize:12,color:"#56c88c",fontWeight:700,flexShrink:0,alignSelf:"center",paddingLeft:8 } }, "→")
+    React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:4,flexShrink:0 } },
+      React.createElement(HeartBtn, { saved:saved, onToggle:function(){ props.onToggleFav(pl,"local"); } }),
+      pl.maps && React.createElement("a", { href:pl.maps, target:"_blank", style:{ fontSize:12,color:"#56c88c",fontWeight:700,paddingLeft:4 } }, "→")
+    )
   );
 }
 
@@ -286,7 +317,7 @@ function SuburbAutocomplete(props) {
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(function(){
       setIsLoading(true);
-      fetch("https://nominatim.openstreetmap.org/search?q="+encodeURIComponent(q)+"&format=json&addressdetails=1&limit=6&countrycodes=au")
+      fetch("https://nominatim.openstreetmap.org/search?q="+encodeURIComponent(q)+"&format=json&addressdetails=1&limit=6")
         .then(function(r){ return r.json(); })
         .then(function(results){
           var mapped = results.map(function(r){
@@ -317,7 +348,7 @@ function SuburbAutocomplete(props) {
     React.createElement("div", { style:{ position:"relative" } },
       React.createElement("input", {
         type:"text",
-        placeholder:"e.g. Newtown, Manly, Surry Hills...",
+        placeholder:"e.g. Coogee, Seminyak, Shibuya...",
         value:props.value,
         autoFocus:true,
         onChange:function(e){ props.onChange(e.target.value); search(e.target.value); },
@@ -446,12 +477,18 @@ function ResultsScreen(props) {
   var loading = props.loading;
   var results = props.results;
   var error   = props.error;
+  var favs    = props.favs || {};
+  var toggleFav = props.onToggleFav || function(){};
   var tab = useState("eats"); var activeTab=tab[0],setActiveTab=tab[1];
+
+  var favList = Object.values(favs);
+  var favCount = favList.length;
 
   var tabs = [
     { id:"eats",   label:"Top Eats",    emoji:"🍽️" },
     { id:"events", label:"What's On",   emoji:"📅" },
     { id:"local",  label:"Nearby",      emoji:"🛍️" },
+    { id:"favs",   label:"Saved",       emoji:"♥", count:favCount },
   ];
 
   return React.createElement("div", { style:BG },
@@ -468,12 +505,17 @@ function ResultsScreen(props) {
       ),
 
       // Tabs
-      React.createElement("div", { style:{ display:"flex",gap:6,marginBottom:22,background:"rgba(255,255,255,0.04)",borderRadius:14,padding:4 } },
+      React.createElement("div", { style:{ display:"flex",gap:4,marginBottom:22,background:"rgba(255,255,255,0.04)",borderRadius:14,padding:4 } },
         tabs.map(function(t){
           var active = activeTab===t.id;
-          return React.createElement("button", { key:t.id, onClick:function(){setActiveTab(t.id);}, style:{ flex:1,padding:"9px 4px",borderRadius:11,background:active?"rgba(86,200,140,0.18)":"transparent",border:active?"1px solid rgba(86,200,140,0.3)":"1px solid transparent",color:active?"#56c88c":"#7a7570",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" } },
+          var isFavTab = t.id==="favs";
+          var activeColor = isFavTab ? "#ff6b8a" : "#56c88c";
+          var activeBg    = isFavTab ? "rgba(255,107,138,0.18)" : "rgba(86,200,140,0.18)";
+          var activeBorder= isFavTab ? "1px solid rgba(255,107,138,0.3)" : "1px solid rgba(86,200,140,0.3)";
+          return React.createElement("button", { key:t.id, onClick:function(){setActiveTab(t.id);}, style:{ flex:1,padding:"9px 2px",borderRadius:11,background:active?activeBg:"transparent",border:active?activeBorder:"1px solid transparent",color:active?activeColor:"#7a7570",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s",position:"relative" } },
             React.createElement("div", null, t.emoji),
-            React.createElement("div", { style:{ marginTop:2 } }, t.label)
+            React.createElement("div", { style:{ marginTop:2 } }, t.label),
+            t.count ? React.createElement("div", { style:{ position:"absolute",top:4,right:4,background:"#ff6b8a",color:"#fff",fontSize:9,fontWeight:700,borderRadius:99,minWidth:14,height:14,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px" } }, t.count) : null
           );
         })
       ),
@@ -509,7 +551,7 @@ function ResultsScreen(props) {
                 React.createElement("span", { style:{ fontSize:13,fontWeight:700,color:"#9a958f",letterSpacing:"0.04em",textTransform:"uppercase" } }, section.label)
               ),
               React.createElement("div", { style:{ display:"flex",flexDirection:"column",gap:12 } },
-                places.map(function(place,i){ return React.createElement(EatCard, { key:i, place:place, index:i }); })
+                places.map(function(place,i){ return React.createElement(EatCard, { key:i, place:place, index:i, favs:favs, onToggleFav:toggleFav }); })
               )
             );
           })
@@ -520,7 +562,7 @@ function ResultsScreen(props) {
               React.createElement(SectionHead, { emoji:"📅", label:"Today & this weekend", color:"#ffc850" })
             ),
             React.createElement("div", { style:{ padding:"0 18px" } },
-              (results.events||[]).map(function(ev,i){ return React.createElement(EventCard, { key:i, event:ev }); })
+              (results.events||[]).map(function(ev,i){ return React.createElement(EventCard, { key:i, event:ev, favs:favs, onToggleFav:toggleFav }); })
             ),
             (results.events||[]).length===0&&React.createElement("div", { style:{ padding:"20px 18px 18px",fontSize:14,color:"#5a5550" } }, "Nothing found for this weekend yet.")
           )
@@ -531,9 +573,54 @@ function ResultsScreen(props) {
               React.createElement(SectionHead, { emoji:"🛍️", label:"Markets & local spots", color:"#b088ff" })
             ),
             React.createElement("div", { style:{ padding:"0 18px" } },
-              (results.local||[]).map(function(pl,i){ return React.createElement(LocalCard, { key:i, place:pl }); })
+              (results.local||[]).map(function(pl,i){ return React.createElement(LocalCard, { key:i, place:pl, favs:favs, onToggleFav:toggleFav }); })
             )
           )
+        ),
+        activeTab==="favs"&&React.createElement("div", null,
+          favList.length===0
+            ? React.createElement("div", { style:{ textAlign:"center",padding:"60px 20px" } },
+                React.createElement("div", { style:{ fontSize:48,marginBottom:16 } }, "♡"),
+                React.createElement("div", { style:{ color:"#9a958f",fontSize:14,lineHeight:1.7 } }, "Tap ♡ on any place or event to save it here.")
+              )
+            : React.createElement("div", { style:{ display:"flex",flexDirection:"column",gap:0 } },
+                React.createElement("div", { style:{ fontSize:11,color:"#5a5550",marginBottom:16,lineHeight:1.6 } }, favList.length+" saved "+( favList.length===1?"item":"items")+" — tap ♥ on any card to remove."),
+                React.createElement(Card, { style:{ padding:"0 18px",overflow:"hidden" } },
+                  favList.map(function(item,i){
+                    var k = favKey(item);
+                    if (item._kind==="eat") {
+                      return React.createElement("div", { key:k, style:{ borderBottom:i<favList.length-1?"1px solid rgba(255,255,255,0.05)":"none",padding:"12px 0",display:"flex",alignItems:"flex-start",gap:10 } },
+                        React.createElement("span", { style:{ fontSize:20,flexShrink:0 } }, item.emoji),
+                        React.createElement("div", { style:{ flex:1,minWidth:0 } },
+                          React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:2 } }, item.name),
+                          React.createElement("div", { style:{ fontSize:12,color:"#7a7570" } }, item.type+" · "+item.price),
+                          item.maps&&React.createElement("a", { href:item.maps, target:"_blank", style:{ fontSize:12,color:"#56c88c",fontWeight:700 } }, "Maps →")
+                        ),
+                        React.createElement(HeartBtn, { saved:true, onToggle:function(){ toggleFav(item,item._kind); } })
+                      );
+                    }
+                    if (item._kind==="event") {
+                      return React.createElement("div", { key:k, style:{ borderBottom:i<favList.length-1?"1px solid rgba(255,255,255,0.05)":"none",padding:"12px 0",display:"flex",alignItems:"flex-start",gap:10 } },
+                        React.createElement("span", { style:{ fontSize:20,flexShrink:0 } }, item.emoji),
+                        React.createElement("div", { style:{ flex:1,minWidth:0 } },
+                          React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:2 } }, item.name),
+                          React.createElement("div", { style:{ fontSize:12,color:"#56c88c",fontWeight:600 } }, item.when+" · "+item.where)
+                        ),
+                        React.createElement(HeartBtn, { saved:true, onToggle:function(){ toggleFav(item,item._kind); } })
+                      );
+                    }
+                    return React.createElement("div", { key:k, style:{ borderBottom:i<favList.length-1?"1px solid rgba(255,255,255,0.05)":"none",padding:"12px 0",display:"flex",alignItems:"flex-start",gap:10 } },
+                      React.createElement("span", { style:{ fontSize:20,flexShrink:0 } }, item.emoji),
+                      React.createElement("div", { style:{ flex:1,minWidth:0 } },
+                        React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:2 } }, item.name),
+                        React.createElement("div", { style:{ fontSize:12,color:"#b088ff",fontWeight:600 } }, item.type+(item.suburb?" · "+item.suburb:"")),
+                        item.maps&&React.createElement("a", { href:item.maps, target:"_blank", style:{ fontSize:12,color:"#56c88c",fontWeight:700 } }, "Maps →")
+                      ),
+                      React.createElement(HeartBtn, { saved:true, onToggle:function(){ toggleFav(item,item._kind); } })
+                    );
+                  })
+                )
+              )
         )
       )
     ),
@@ -548,7 +635,7 @@ function ResultsScreen(props) {
 function buildPrompt(suburb) {
   var d = new Date();
   var dateStr = d.toDateString();
-  return "You are a local Sydney guide with up-to-date knowledge of " + suburb + ", Australia.\nToday is " + dateStr + ".\n" +
+  return "You are a knowledgeable local guide for " + suburb + ".\nToday is " + dateStr + ".\n" +
     (WORKER_URL ? "Use web search to find current, real information for today and this weekend.\n" : "") +
     "Return ONLY valid JSON (no markdown) with this structure:\n" +
     "{\"eats\":{" +
@@ -562,7 +649,7 @@ function buildPrompt(suburb) {
     "For eats: 2 breakfast spots (cafes, bakeries, brunch), 2 lunch spots (restaurants, cafes, pubs), 2 dinner spots (restaurants, bars), 2 bars/pubs for drinks.\n" +
     "4 events happening today or this weekend, 3 local spots worth knowing.\n" +
     "Confidence score: 90+ = consistently excellent reviews, 80-89 = very good, 70-79 = good. Base on real reputation.\n" +
-    "All results must be real places in or very close to " + suburb + ".";
+    "All results must be real places in or very close to " + suburb + ". Use local currency symbols and local context appropriate for that location.";
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────
@@ -574,6 +661,18 @@ function App() {
   var er = useState(null); var error=er[0],setError=er[1];
   var ak = useState(function(){ return ls.str("skedaddle_apikey",""); }); var apiKey=ak[0],setApiKey=ak[1];
   var pv = useState("home"); var prev=pv[0],setPrev=pv[1];
+  var fv = useState(function(){ return ls.get("skedaddle_favs",{}); }); var favs=fv[0],setFavs=fv[1];
+
+  function toggleFav(item, kind) {
+    var k = favKey(item);
+    setFavs(function(prev) {
+      var next = Object.assign({},prev);
+      if (next[k]) { delete next[k]; }
+      else { next[k] = Object.assign({},item,{_kind:kind}); }
+      ls.set("skedaddle_favs", next);
+      return next;
+    });
+  }
 
   function goSettings() { setPrev(screen); setScreen("settings"); }
 
@@ -617,7 +716,7 @@ function App() {
   }
 
   if (screen==="settings") return React.createElement(SettingsScreen, { currentKey:apiKey, onSave:function(k){setApiKey(k);}, onBack:function(){setScreen(prev||"home");} });
-  if (screen==="results") return React.createElement(ResultsScreen, { suburb:suburb, loading:loading, results:results, error:error, onBack:function(){setScreen("home");}, onRetry:doSearch });
+  if (screen==="results") return React.createElement(ResultsScreen, { suburb:suburb, loading:loading, results:results, error:error, favs:favs, onToggleFav:toggleFav, onBack:function(){setScreen("home");}, onRetry:doSearch });
   return React.createElement(HomeScreen, { apiKey:apiKey, onSettings:goSettings, onSearch:doSearch });
 }
 
