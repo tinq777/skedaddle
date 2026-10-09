@@ -9,6 +9,8 @@
   <meta name="apple-mobile-web-app-title" content="Skedaddle" />
   <title>Skedaddle 🏃</title>
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <style>
@@ -38,24 +40,25 @@ const ls = {
   del:    (k)    => { try { localStorage.removeItem(k); } catch {} },
 };
 
-// ── ONBOARDING SLIDES ────────────────────────────────────────
-const ONBOARDING = [
-  { emoji:"🏃", title:"Skedaddle.", body:"Tap once. Find out what's great to eat, what's on, and what's happening near you — right now.", accent:"#56c88c" },
-  { emoji:"📍", title:"Your neighbourhood.", body:"We detect your suburb automatically. No account, no setup. Just open and go.", accent:"#ffc850" },
-  { emoji:"🍽️", title:"Real local intel.", body:"Top-rated restaurants, cafes, bars and pubs — with a confidence score so you know what's worth it.", accent:"#b088ff" },
-  { emoji:"📅", title:"What's on today.", body:"Markets, events, pop-ups, and anything happening in your area this weekend.", accent:"#56c88c" },
-];
 
 // ── MOCK DATA ─────────────────────────────────────────────────
 const MOCK_SUBURB = "Coogee";
 const MOCK_RESULTS = {
-  eats: [
-    { name:"Coogee Pavilion",        emoji:"🍹", type:"Bar & Bistro",   confidence:94, why:"Rooftop views over the beach, excellent cocktails and wood-fired food. The best perch in the suburb.", hours:"Open now · closes 11pm", price:"$$", tags:["views","cocktails","casual"],  maps:"https://maps.google.com/?q=Coogee+Pavilion+Sydney" },
-    { name:"Swell Cafe",             emoji:"☕", type:"Cafe",            confidence:91, why:"Locals' go-to for flat whites and smashed avo. Gets busy by 9am on weekends — worth the queue.", hours:"Open now · closes 3pm",  price:"$",  tags:["breakfast","coffee","local"],  maps:"https://maps.google.com/?q=Swell+Cafe+Coogee" },
-    { name:"The Coogee Bay Hotel",   emoji:"🍺", type:"Pub",             confidence:87, why:"Classic Sydney pub right on the beachfront. Great for a cold schooner after a swim.", hours:"Open now · closes 12am", price:"$",  tags:["pub","beer garden","beach"],  maps:"https://maps.google.com/?q=Coogee+Bay+Hotel" },
-    { name:"Gusto da Gianni",        emoji:"🍕", type:"Italian",         confidence:89, why:"Neighbourhood Italian that punches well above its weight. House-made pasta, great natural wine list.", hours:"Opens 6pm",             price:"$$", tags:["dinner","pasta","wine"],      maps:"https://maps.google.com/?q=Gusto+da+Gianni+Coogee" },
-    { name:"Three Blue Ducks Randwick", emoji:"🦆", type:"Cafe & Brunch",confidence:85, why:"Farm-to-table brunch legend nearby in Randwick. Long queue but the corn fritters are worth it.", hours:"Open now · closes 3pm",  price:"$$", tags:["brunch","local produce","popular"], maps:"https://maps.google.com/?q=Three+Blue+Ducks+Randwick" },
-  ],
+  eats: {
+    breakfast: [
+      { name:"Swell Cafe",             emoji:"☕", type:"Cafe",            confidence:91, why:"Locals' go-to for flat whites and smashed avo. Gets busy by 9am on weekends — worth the queue.", hours:"Open now · closes 3pm",  price:"$",  tags:["coffee","local"],  maps:"https://maps.google.com/?q=Swell+Cafe+Coogee" },
+      { name:"Three Blue Ducks Randwick", emoji:"🦆", type:"Cafe & Brunch",confidence:85, why:"Farm-to-table brunch legend nearby in Randwick. Long queue but the corn fritters are worth it.", hours:"Open now · closes 3pm",  price:"$$", tags:["brunch","local produce"], maps:"https://maps.google.com/?q=Three+Blue+Ducks+Randwick" },
+    ],
+    lunch: [
+      { name:"Coogee Pavilion",        emoji:"🍹", type:"Bar & Bistro",   confidence:94, why:"Rooftop views over the beach, excellent wood-fired food. Buzzy for a long weekend lunch.", hours:"Open now · closes 11pm", price:"$$", tags:["views","casual"],  maps:"https://maps.google.com/?q=Coogee+Pavilion+Sydney" },
+    ],
+    dinner: [
+      { name:"Gusto da Gianni",        emoji:"🍕", type:"Italian",         confidence:89, why:"Neighbourhood Italian that punches well above its weight. House-made pasta, great natural wine list.", hours:"Opens 6pm",             price:"$$", tags:["pasta","wine"],      maps:"https://maps.google.com/?q=Gusto+da+Gianni+Coogee" },
+    ],
+    bars: [
+      { name:"The Coogee Bay Hotel",   emoji:"🍺", type:"Pub",             confidence:87, why:"Classic Sydney pub right on the beachfront. Great for a cold schooner after a swim.", hours:"Open now · closes 12am", price:"$",  tags:["beer garden","beach"],  maps:"https://maps.google.com/?q=Coogee+Bay+Hotel" },
+    ],
+  },
   events: [
     { name:"Coogee Beach Markets",   emoji:"🛍️", when:"Sunday 8am–1pm",  where:"Coogee Beach foreshore",        desc:"Local makers, fresh produce, vintage clothing and street food right by the beach." },
     { name:"Sunset Yoga on the Grass", emoji:"🧘", when:"Today 5:30pm",  where:"Grant Reserve, Coogee",         desc:"Free community yoga session. BYO mat. 45 mins, all levels welcome." },
@@ -123,37 +126,6 @@ function ConfidenceBadge(props) {
   return React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:20,background:bg,border:"1px solid "+bdr } },
     React.createElement("div", { style:{ width:6,height:6,borderRadius:"50%",background:color,boxShadow:"0 0 6px "+color } }),
     React.createElement("span", { style:{ fontSize:12,fontWeight:700,color:color } }, score+"%")
-  );
-}
-
-// ── ONBOARDING ───────────────────────────────────────────────
-function OnboardingScreen(props) {
-  var slide = useState(0);
-  var s = slide[0], setS = slide[1];
-  var cur = ONBOARDING[s], isLast = s===ONBOARDING.length-1;
-  return React.createElement("div", { style:BG },
-    React.createElement(Orbs),
-    React.createElement("div", { style:{ maxWidth:480,margin:"0 auto",padding:"0 24px",minHeight:"100vh",display:"flex",flexDirection:"column",paddingTop:60 } },
-      React.createElement("div", { style:{ display:"flex",justifyContent:"flex-end",paddingTop:8 } },
-        React.createElement("button", { onClick:props.onDone, style:{ background:"none",border:"none",color:"#5a5550",fontSize:14,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" } }, "Skip")
-      ),
-      React.createElement("div", { style:{ flex:1,display:"flex",flexDirection:"column",justifyContent:"center",paddingBottom:40 } },
-        React.createElement("div", { style:{ fontSize:72,marginBottom:32,lineHeight:1 } }, cur.emoji),
-        React.createElement("div", { style:{ display:"flex",gap:6,marginBottom:24 } },
-          ONBOARDING.map(function(_,i){ return React.createElement("div", { key:i, style:{ height:3,borderRadius:2,width:i===s?24:8,background:i===s?cur.accent:"rgba(255,255,255,0.15)",transition:"all 0.25s" } }); })
-        ),
-        React.createElement("h1", { style:{ fontFamily:"'Fraunces',serif",fontWeight:900,fontSize:"clamp(36px,10vw,50px)",lineHeight:1.05,margin:"0 0 16px",color:"#f8f4ee",letterSpacing:"-0.02em" } }, cur.title),
-        React.createElement("p", { style:{ fontSize:16,color:"#7a7570",lineHeight:1.75,margin:0,maxWidth:340 } }, cur.body)
-      ),
-      React.createElement("div", { style:{ paddingBottom:48 } },
-        React.createElement("button", { onClick:function(){ isLast?props.onDone():setS(function(x){return x+1;}); }, style:{ width:"100%",padding:18,borderRadius:16,background:"linear-gradient(135deg,"+cur.accent+","+cur.accent+"cc)",color:"#071a10",border:"none",cursor:"pointer",fontSize:17,fontWeight:700,fontFamily:"'DM Sans',sans-serif" } }, isLast?"Let's go 🏃 →":"Next →"),
-        isLast && React.createElement("div", { style:{ marginTop:16,padding:"14px 18px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:14,fontSize:12,color:"#6a6560",lineHeight:1.7,textAlign:"center" } },
-          "You'll need an Anthropic API key to power the search. Add it in ",
-          React.createElement("strong", { style:{ color:"#c8c3b8" } }, "⚙️ Settings"),
-          "."
-        )
-      )
-    )
   );
 }
 
@@ -302,6 +274,60 @@ function LocalCard(props) {
   );
 }
 
+// ── MAP PICKER ───────────────────────────────────────────────
+function MapPicker(props) {
+  // props: centerLat, centerLon, onPick(suburbName)
+  var mapRef = useRef(null);
+  var mapObjRef = useRef(null);
+  var markerRef = useRef(null);
+  var pendingRef = useRef(false);
+
+  useEffect(function(){
+    if (mapObjRef.current) return; // already initialised
+    var lat = props.centerLat || -33.8688;
+    var lon = props.centerLon || 151.2093;
+    var m = L.map(mapRef.current, { zoomControl:true, attributionControl:false }).setView([lat,lon], 14);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      maxZoom:19, subdomains:"abcd"
+    }).addTo(m);
+    // Custom green marker
+    var icon = L.divIcon({
+      html:"<div style='width:22px;height:22px;background:#56c88c;border-radius:50%;border:3px solid #fff;box-shadow:0 0 10px rgba(86,200,140,0.7);'></div>",
+      className:"", iconSize:[22,22], iconAnchor:[11,11]
+    });
+    m.on("click", function(e){
+      if (pendingRef.current) return;
+      pendingRef.current = true;
+      var latlng = e.latlng;
+      if (markerRef.current) { markerRef.current.setLatLng(latlng); }
+      else { markerRef.current = L.marker(latlng,{icon:icon}).addTo(m); }
+      fetch("https://nominatim.openstreetmap.org/reverse?lat="+latlng.lat+"&lon="+latlng.lng+"&format=json")
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var s = (d.address&&(d.address.suburb||d.address.town||d.address.city_district||d.address.city))||"";
+          if (s) props.onPick(s);
+          pendingRef.current = false;
+        })
+        .catch(function(){ pendingRef.current = false; });
+    });
+    mapObjRef.current = m;
+  }, []);
+
+  // Re-centre when GPS coords arrive
+  useEffect(function(){
+    if (!mapObjRef.current) return;
+    if (props.centerLat && props.centerLon) {
+      mapObjRef.current.setView([props.centerLat, props.centerLon], 14, {animate:true});
+    }
+  }, [props.centerLat, props.centerLon]);
+
+  return React.createElement("div", { ref:mapRef, style:{
+    width:"100%", height:220, borderRadius:14, overflow:"hidden",
+    border:"1px solid rgba(86,200,140,0.3)", marginTop:8,
+    cursor:"crosshair", position:"relative"
+  }});
+}
+
 // ── HOME SCREEN ──────────────────────────────────────────────
 function HomeScreen(props) {
   var apiKey = props.apiKey;
@@ -310,12 +336,14 @@ function HomeScreen(props) {
   var locErr = useState(false); var locError=locErr[0],setLocError=locErr[1];
   var manMode = useState(false); var manualMode=manMode[0],setManualMode=manMode[1];
   var manInp = useState(""); var manualInput=manInp[0],setManualInput=manInp[1];
+  var gpsCoords = useState(null); var coords=gpsCoords[0],setCoords=gpsCoords[1];
 
   useEffect(function(){
     if (!navigator.geolocation) { setLocError(true); setLocLoading(false); setManualMode(true); return; }
     navigator.geolocation.getCurrentPosition(
       function(pos) {
         var lat=pos.coords.latitude, lon=pos.coords.longitude;
+        setCoords({lat:lat,lon:lon});
         fetch("https://nominatim.openstreetmap.org/reverse?lat="+lat+"&lon="+lon+"&format=json")
           .then(function(r){ return r.json(); })
           .then(function(d){
@@ -356,7 +384,7 @@ function HomeScreen(props) {
           React.createElement("button", {
             onClick:function(){ setManualMode(function(m){return !m;}); },
             style:{ background:"none",border:"none",fontSize:11,color:"#56c88c",cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif",fontWeight:600 }
-          }, manualMode?"Use my location ↩":"Change →")
+          }, manualMode?"Use my location ↩":"Pick on map →")
         ),
         !manualMode && React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:10 } },
           React.createElement("span", { style:{ fontSize:22 } }, locLoading?"⏳":locError?"❌":"📍"),
@@ -366,14 +394,17 @@ function HomeScreen(props) {
           )
         ),
         manualMode && React.createElement("div", null,
-          React.createElement("input", {
-            type:"text",
-            placeholder:"e.g. Newtown, Manly, Surry Hills...",
-            value:manualInput,
-            autoFocus:true,
-            onChange:function(e){ setManualInput(e.target.value); setSuburb(e.target.value); },
-            onKeyDown:function(e){ if(e.key==="Enter"&&manualInput.trim()){ props.onSearch(DEMO_MODE?MOCK_SUBURB:manualInput.trim()); } },
-            style:{ width:"100%",padding:"12px 14px",borderRadius:12,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(86,200,140,0.35)",color:"#f0ede6",fontSize:15,outline:"none",fontFamily:"'DM Sans',sans-serif" }
+          // Selected suburb pill
+          manualInput && React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:8,marginBottom:8 } },
+            React.createElement("span", { style:{ fontSize:14 } }, "📍"),
+            React.createElement("span", { style:{ fontSize:15,fontWeight:700,color:"#f8f4ee" } }, manualInput),
+            React.createElement("span", { style:{ fontSize:11,color:"#5a7560" } }, "— tap the map to change")
+          ),
+          !manualInput && React.createElement("div", { style:{ fontSize:12,color:"#7a7570",marginBottom:8 } }, "Tap anywhere on the map to pick your suburb"),
+          React.createElement(MapPicker, {
+            centerLat: coords ? coords.lat : -33.8688,
+            centerLon: coords ? coords.lon : 151.2093,
+            onPick: function(s){ setManualInput(s); setSuburb(s); }
           })
         ),
         locError && !manualMode && React.createElement("button", { onClick:function(){ setManualMode(true); }, style:{ marginTop:10,fontSize:12,color:"#56c88c",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif" } }, "Enter suburb manually →")
@@ -458,10 +489,25 @@ function ResultsScreen(props) {
       // Results
       results&&React.createElement("div", null,
         activeTab==="eats"&&React.createElement("div", null,
-          React.createElement("div", { style:{ fontSize:11,color:"#5a5550",marginBottom:14,lineHeight:1.6 } }, "Confidence score reflects how consistently well-reviewed each place is across sources."),
-          React.createElement("div", { style:{ display:"flex",flexDirection:"column",gap:12 } },
-            (results.eats||[]).map(function(place,i){ return React.createElement(EatCard, { key:i, place:place, index:i }); })
-          )
+          React.createElement("div", { style:{ fontSize:11,color:"#5a5550",marginBottom:18,lineHeight:1.6 } }, "Confidence score reflects how consistently well-reviewed each place is across sources."),
+          [
+            { key:"breakfast", emoji:"🌅", label:"Breakfast & Brunch" },
+            { key:"lunch",     emoji:"☀️",  label:"Lunch" },
+            { key:"dinner",    emoji:"🌙", label:"Dinner" },
+            { key:"bars",      emoji:"🍸", label:"Bars & Pubs" },
+          ].map(function(section) {
+            var places = (results.eats&&results.eats[section.key])||[];
+            if (!places.length) return null;
+            return React.createElement("div", { key:section.key, style:{ marginBottom:24 } },
+              React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:8,marginBottom:12 } },
+                React.createElement("span", { style:{ fontSize:16 } }, section.emoji),
+                React.createElement("span", { style:{ fontSize:13,fontWeight:700,color:"#9a958f",letterSpacing:"0.04em",textTransform:"uppercase" } }, section.label)
+              ),
+              React.createElement("div", { style:{ display:"flex",flexDirection:"column",gap:12 } },
+                places.map(function(place,i){ return React.createElement(EatCard, { key:i, place:place, index:i }); })
+              )
+            );
+          })
         ),
         activeTab==="events"&&React.createElement("div", null,
           React.createElement(Card, { style:{ padding:0,overflow:"hidden" } },
@@ -500,10 +546,16 @@ function buildPrompt(suburb) {
   return "You are a local Sydney guide with up-to-date knowledge of " + suburb + ", Australia.\nToday is " + dateStr + ".\n" +
     (WORKER_URL ? "Use web search to find current, real information for today and this weekend.\n" : "") +
     "Return ONLY valid JSON (no markdown) with this structure:\n" +
-    "{\"eats\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Restaurant|Cafe|Bar|Pub\",\"confidence\":85,\"why\":\"2 sentences on why it's worth going\",\"hours\":\"Open now · closes Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}],\n" +
+    "{\"eats\":{" +
+    "\"breakfast\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Cafe|Bakery|Brunch\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
+    "\"lunch\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Restaurant|Cafe|Bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
+    "\"dinner\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Restaurant|Bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Opens Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
+    "\"bars\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Bar|Pub|Wine bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xam\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]" +
+    "},\n" +
     "\"events\":[{\"name\":\"...\",\"emoji\":\"e\",\"when\":\"Today Xpm|Saturday Xam\",\"where\":\"venue name\",\"desc\":\"1-2 sentences\"}],\n" +
     "\"local\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"type\",\"desc\":\"1-2 sentences\",\"suburb\":\"suburb\",\"maps\":\"https://maps.google.com/?q=...\"}]}\n\n" +
-    "Return exactly 5 eats (mix of restaurants, cafes, bars, pubs), 4 events happening today or this weekend, 3 local spots worth knowing.\n" +
+    "For eats: 2 breakfast spots (cafes, bakeries, brunch), 2 lunch spots (restaurants, cafes, pubs), 2 dinner spots (restaurants, bars), 2 bars/pubs for drinks.\n" +
+    "4 events happening today or this weekend, 3 local spots worth knowing.\n" +
     "Confidence score: 90+ = consistently excellent reviews, 80-89 = very good, 70-79 = good. Base on real reputation.\n" +
     "All results must be real places in or very close to " + suburb + ".";
 }
@@ -516,7 +568,6 @@ function App() {
   var rs = useState(null); var results=rs[0],setResults=rs[1];
   var er = useState(null); var error=er[0],setError=er[1];
   var ak = useState(function(){ return ls.str("skedaddle_apikey",""); }); var apiKey=ak[0],setApiKey=ak[1];
-  var ob = useState(function(){ return ls.get("skedaddle_onboarded",false); }); var onboarded=ob[0],setOnboarded=ob[1];
   var pv = useState("home"); var prev=pv[0],setPrev=pv[1];
 
   function goSettings() { setPrev(screen); setScreen("settings"); }
@@ -560,7 +611,6 @@ function App() {
       .catch(function(){ setError("Can't reach Anthropic — check your connection."); setLoading(false); });
   }
 
-  if (!onboarded) return React.createElement(OnboardingScreen, { onDone:function(){ ls.set("skedaddle_onboarded",true); setOnboarded(true); } });
   if (screen==="settings") return React.createElement(SettingsScreen, { currentKey:apiKey, onSave:function(k){setApiKey(k);}, onBack:function(){setScreen(prev||"home");} });
   if (screen==="results") return React.createElement(ResultsScreen, { suburb:suburb, loading:loading, results:results, error:error, onBack:function(){setScreen("home");}, onRetry:doSearch });
   return React.createElement(HomeScreen, { apiKey:apiKey, onSettings:goSettings, onSearch:doSearch });
