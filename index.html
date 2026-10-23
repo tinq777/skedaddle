@@ -140,9 +140,10 @@ function SettingsScreen(props) {
     var t = key.trim();
     if (!t.startsWith("sk-ant-")) { setError("Keys start with sk-ant- — check and try again."); return; }
     setTesting(true); setError("");
-    fetch("https://api.anthropic.com/v1/messages", { method:"POST", headers:{"Content-Type":"application/json","x-api-key":t,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"}, body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:10,messages:[{role:"user",content:"hi"}]}) })
+    fetch("https://api.anthropic.com/v1/messages", { method:"POST", headers:{"Content-Type":"application/json","x-api-key":t,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"}, body:JSON.stringify({model:"claude-haiku-4-5",max_tokens:10,messages:[{role:"user",content:"hi"}]}) })
       .then(function(res){
         if (res.status===401) { setError("Invalid key — double-check and try again."); setTesting(false); return; }
+        if (!res.ok) { setError("Key check failed ("+res.status+") — verify your key at console.anthropic.com."); setTesting(false); return; }
         ls.setStr("skedaddle_apikey",t); props.onSave(t); setEditing(false); setHasKey(true); setSaved(true); setKey("");
         setTesting(false);
       })
@@ -529,8 +530,13 @@ function ResultsScreen(props) {
       // Error
       error&&React.createElement("div", { style:{ textAlign:"center",padding:"60px 20px" } },
         React.createElement("div", { style:{ fontSize:32,marginBottom:16 } }, "😅"),
-        React.createElement("div", { style:{ color:"#9a958f",marginBottom:24,fontSize:14,lineHeight:1.6 } }, error),
-        React.createElement("button", { onClick:function(){props.onRetry(suburb);}, style:{ padding:"12px 28px",borderRadius:12,background:"#56c88c",color:"#071a10",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"'DM Sans',sans-serif" } }, "Try again")
+        React.createElement("div", { style:{ color:"#9a958f",marginBottom:16,fontSize:14,lineHeight:1.6 } }, error),
+        error&&error.indexOf("401")>-1&&React.createElement("div", { style:{ color:"#ffc850",fontSize:12,marginBottom:20,padding:"8px 12px",background:"rgba(255,200,80,0.08)",borderRadius:10,border:"1px solid rgba(255,200,80,0.2)" } }, "Your API key was rejected. Go to Settings and re-enter it."),
+        error&&error.indexOf("400")>-1&&React.createElement("div", { style:{ color:"#ffc850",fontSize:12,marginBottom:20,padding:"8px 12px",background:"rgba(255,200,80,0.08)",borderRadius:10,border:"1px solid rgba(255,200,80,0.2)" } }, "Bad request — check the browser console (F12) for the full error message."),
+        React.createElement("div", { style:{ display:"flex",gap:10,justifyContent:"center",flexWrap:"wrap" } },
+          React.createElement("button", { onClick:function(){props.onRetry(suburb);}, style:{ padding:"12px 28px",borderRadius:12,background:"#56c88c",color:"#071a10",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"'DM Sans',sans-serif" } }, "Try again"),
+          React.createElement("button", { onClick:props.onSettings, style:{ padding:"12px 28px",borderRadius:12,background:"rgba(255,255,255,0.07)",color:"#f0ede6",border:"1px solid rgba(255,255,255,0.12)",cursor:"pointer",fontWeight:700,fontFamily:"'DM Sans',sans-serif" } }, "⚙️ Settings")
+        )
       ),
 
       // Results
@@ -690,14 +696,21 @@ function App() {
       : { "Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" };
     var body = usingWorker
       ? { messages:[{role:"user",content:prompt}] }
-      : { model:"claude-sonnet-4-6",max_tokens:2000,messages:[{role:"user",content:prompt}] };
-    fetch(endpoint, { method:"POST", headers:headers, body:JSON.stringify(body) })
+      : { model:"claude-sonnet-4-6",max_tokens:3500,system:"You are a helpful local guide. Return only valid JSON with no markdown fencing.",messages:[{role:"user",content:prompt}] };
+    var bodyStr = JSON.stringify(body);
+    console.log("Request to:", endpoint);
+    console.log("Headers:", JSON.stringify(headers));
+    console.log("Body preview:", bodyStr.slice(0,300));
+    fetch(endpoint, { method:"POST", headers:headers, body:bodyStr })
       .then(function(res){
         if (!res.ok) {
-          res.json().catch(function(){return{};}).then(function(e){
-            if (res.status===401) setError("API key rejected — check Settings.");
-            else if (res.status===429) setError("Rate limit hit — wait a moment and try again.");
-            else setError("Error "+res.status+" — please try again.");
+          res.text().then(function(raw){
+            console.error("API error "+res.status+":", raw);
+            var e = {}; try { e = JSON.parse(raw); } catch(x) {}
+            var msg = (e&&e.error&&e.error.message)||raw.slice(0,120)||"";
+            if (res.status===401) setError("Error 401 — API key rejected. Go to Settings and re-enter your key.");
+            else if (res.status===429) setError("Error 429 — Rate limit hit. Wait a moment and try again.");
+            else setError("Error "+res.status+(msg?" — "+msg:" — please try again."));
             setLoading(false);
           });
           return;
@@ -707,16 +720,27 @@ function App() {
       .then(function(data){
         if (!data) return;
         var text = (data.content||[]).filter(function(b){return b.type==="text";}).map(function(b){return b.text;}).join("");
-        var match = text.match(/\{[\s\S]*\}/);
-        if (!match) { setError("Unexpected response — please try again."); setLoading(false); return; }
-        try { setResults(JSON.parse(match[0])); } catch(e) { setError("Couldn't parse response — please try again."); }
+        // Strip markdown code fences if present
+        var cleaned = text.replace(/```json\s*/gi,"").replace(/```\s*/g,"").trim();
+        // Find the outermost { ... } block
+        var start = cleaned.indexOf("{");
+        var end   = cleaned.lastIndexOf("}");
+        if (start===-1||end===-1||end<=start) { setError("No data returned — try again."); setLoading(false); return; }
+        var jsonStr = cleaned.slice(start, end+1);
+        try {
+          var parsed = JSON.parse(jsonStr);
+          setResults(parsed);
+        } catch(e) {
+          console.error("Parse error:", e, "\nRaw:", text.slice(0,500));
+          setError("Couldn't parse response — please try again.");
+        }
         setLoading(false);
       })
       .catch(function(){ setError("Can't reach Anthropic — check your connection."); setLoading(false); });
   }
 
   if (screen==="settings") return React.createElement(SettingsScreen, { currentKey:apiKey, onSave:function(k){setApiKey(k);}, onBack:function(){setScreen(prev||"home");} });
-  if (screen==="results") return React.createElement(ResultsScreen, { suburb:suburb, loading:loading, results:results, error:error, favs:favs, onToggleFav:toggleFav, onBack:function(){setScreen("home");}, onRetry:doSearch });
+  if (screen==="results") return React.createElement(ResultsScreen, { suburb:suburb, loading:loading, results:results, error:error, favs:favs, onToggleFav:toggleFav, onBack:function(){setScreen("home");}, onRetry:doSearch, onSettings:goSettings });
   return React.createElement(HomeScreen, { apiKey:apiKey, onSettings:goSettings, onSearch:doSearch });
 }
 

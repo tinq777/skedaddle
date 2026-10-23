@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0d1f1a" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Skedaddle" />
+  <title>Skedaddle 🏃</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700;900&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet" />
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #0a1510; }
+    @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/javascript">
+const { useState, useEffect, useRef } = React;
+
+// ── CONFIG ────────────────────────────────────────────────────
+const DEMO_MODE  = false; // set true to use mock data without API key
+const WORKER_URL = "";    // e.g. "https://skedaddle-worker.yourname.workers.dev"
+
+// ── STORAGE HELPERS ───────────────────────────────────────────
+const ls = {
+  get:    (k,fb) => { try { const v=localStorage.getItem(k); return v!==null?JSON.parse(v):fb; } catch { return fb; } },
+  set:    (k,v)  => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} },
+  str:    (k,fb) => { try { return localStorage.getItem(k)||fb; } catch { return fb; } },
+  setStr: (k,v)  => { try { localStorage.setItem(k,v); } catch {} },
+  del:    (k)    => { try { localStorage.removeItem(k); } catch {} },
+};
+
+
+// ── MOCK DATA ─────────────────────────────────────────────────
+const MOCK_SUBURB = "Coogee";
+const MOCK_RESULTS = {
+  eats: {
+    breakfast: [
+      { name:"Swell Cafe",             emoji:"☕", type:"Cafe",            confidence:91, why:"Locals' go-to for flat whites and smashed avo. Gets busy by 9am on weekends — worth the queue.", hours:"Open now · closes 3pm",  price:"$",  tags:["coffee","local"],  maps:"https://maps.google.com/?q=Swell+Cafe+Coogee" },
+      { name:"Three Blue Ducks Randwick", emoji:"🦆", type:"Cafe & Brunch",confidence:85, why:"Farm-to-table brunch legend nearby in Randwick. Long queue but the corn fritters are worth it.", hours:"Open now · closes 3pm",  price:"$$", tags:["brunch","local produce"], maps:"https://maps.google.com/?q=Three+Blue+Ducks+Randwick" },
+    ],
+    lunch: [
+      { name:"Coogee Pavilion",        emoji:"🍹", type:"Bar & Bistro",   confidence:94, why:"Rooftop views over the beach, excellent wood-fired food. Buzzy for a long weekend lunch.", hours:"Open now · closes 11pm", price:"$$", tags:["views","casual"],  maps:"https://maps.google.com/?q=Coogee+Pavilion+Sydney" },
+    ],
+    dinner: [
+      { name:"Gusto da Gianni",        emoji:"🍕", type:"Italian",         confidence:89, why:"Neighbourhood Italian that punches well above its weight. House-made pasta, great natural wine list.", hours:"Opens 6pm",             price:"$$", tags:["pasta","wine"],      maps:"https://maps.google.com/?q=Gusto+da+Gianni+Coogee" },
+    ],
+    bars: [
+      { name:"The Coogee Bay Hotel",   emoji:"🍺", type:"Pub",             confidence:87, why:"Classic Sydney pub right on the beachfront. Great for a cold schooner after a swim.", hours:"Open now · closes 12am", price:"$",  tags:["beer garden","beach"],  maps:"https://maps.google.com/?q=Coogee+Bay+Hotel" },
+    ],
+  },
+  events: [
+    { name:"Coogee Beach Markets",   emoji:"🛍️", when:"Sunday 8am–1pm",  where:"Coogee Beach foreshore",        desc:"Local makers, fresh produce, vintage clothing and street food right by the beach." },
+    { name:"Sunset Yoga on the Grass", emoji:"🧘", when:"Today 5:30pm",  where:"Grant Reserve, Coogee",         desc:"Free community yoga session. BYO mat. 45 mins, all levels welcome." },
+    { name:"Open Mic Night",         emoji:"🎸", when:"Tonight 8pm",     where:"Coogee Bay Hotel front bar",    desc:"Local musos every Friday. Free entry, first round specials before 9pm." },
+    { name:"Randwick Farmers Market", emoji:"🥬", when:"Saturday 8am–1pm", where:"Randwick Racecourse",         desc:"Best selection of fresh produce in the eastern suburbs. The bread stall sells out fast." },
+  ],
+  local: [
+    { name:"Gould's Book Arcade",    emoji:"📚", type:"Secondhand Books", desc:"Newtown institution with 100k+ books across two floors. Sydney's best book rabbit hole.", suburb:"Newtown (20 min)", maps:"https://maps.google.com/?q=Goulds+Book+Arcade+Newtown" },
+    { name:"Coogee Beach",           emoji:"🏖️", type:"Beach",            desc:"One of Sydney's most sheltered beaches. Great for swimming, calm enough for kids.", suburb:"Coogee",           maps:"https://maps.google.com/?q=Coogee+Beach" },
+    { name:"The Spot",               emoji:"🛒", type:"Local strip",       desc:"Coogee's main village strip. Deli, bakery, bottle shop and the best pizza takeaway in the east.", suburb:"Coogee",           maps:"https://maps.google.com/?q=The+Spot+Coogee" },
+  ]
+};
+
+function getMockResults(suburb) {
+  return new Promise(function(resolve) {
+    setTimeout(function() { resolve(MOCK_RESULTS); }, 1600);
+  });
+}
+
+// ── STYLES ───────────────────────────────────────────────────
+const BG   = { minHeight:"100vh", background:"linear-gradient(160deg,#0f1a2e 0%,#0d1f1a 50%,#0a1510 100%)", fontFamily:"'DM Sans',sans-serif", color:"#f0ede6", position:"relative", overflowX:"hidden" };
+const PAGE = { maxWidth:480, margin:"0 auto", padding:"env(safe-area-inset-top,0px) 20px 100px", paddingTop:"max(56px, env(safe-area-inset-top,0px))" };
+const NAV  = { position:"fixed", bottom:0, left:0, right:0, paddingBottom:"max(12px,env(safe-area-inset-bottom,8px))", paddingTop:10, paddingLeft:16, paddingRight:16, background:"rgba(10,21,16,0.96)", backdropFilter:"blur(24px)", borderTop:"1px solid rgba(255,255,255,0.07)", zIndex:100, display:"flex", alignItems:"center", justifyContent:"space-between" };
+
+// ── UI PRIMITIVES ────────────────────────────────────────────
+function Orbs() {
+  return React.createElement(React.Fragment, null,
+    React.createElement("div", { style:{ position:"fixed",top:"-15%",right:"-8%",width:480,height:480,borderRadius:"50%",background:"radial-gradient(circle,rgba(255,200,80,0.08) 0%,transparent 70%)",pointerEvents:"none" } }),
+    React.createElement("div", { style:{ position:"fixed",bottom:"-12%",left:"-8%",width:420,height:420,borderRadius:"50%",background:"radial-gradient(circle,rgba(86,200,140,0.07) 0%,transparent 70%)",pointerEvents:"none" } })
+  );
+}
+function NavBar(props) {
+  return React.createElement("div", { style:NAV },
+    React.createElement("div", { style:{ flex:1,display:"flex",justifyContent:"flex-start" } }, props.left||null),
+    React.createElement("div", { style:{ flex:1,display:"flex",justifyContent:"center" } }, props.center||null),
+    React.createElement("div", { style:{ flex:1,display:"flex",justifyContent:"flex-end" } }, props.right||null)
+  );
+}
+function NavBtn(props) {
+  return React.createElement("button", {
+    onClick: props.onClick,
+    style:{ background:props.accent?"linear-gradient(135deg,#56c88c,#2ea868)":"rgba(255,255,255,0.06)", border:props.accent?"none":"1px solid rgba(255,255,255,0.1)", borderRadius:12, padding:"10px 18px", color:props.accent?"#071a10":"#9a958f", fontSize:14, fontWeight:700, cursor:"pointer", minWidth:80, textAlign:"center", fontFamily:"'DM Sans',sans-serif" }
+  }, props.children);
+}
+function Tag(props) {
+  return React.createElement("span", { style:{ fontSize:11, padding:"3px 10px", borderRadius:20, background:props.bg||"rgba(86,200,140,0.1)", color:props.color||"#56c88c", border:"1px solid "+(props.border||"rgba(86,200,140,0.22)"), fontWeight:600 } }, props.children);
+}
+function Card(props) {
+  return React.createElement("div", { style:{ background:"rgba(255,255,255,0.035)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:20, padding:props.tight?18:22, ...props.style } }, props.children);
+}
+function SectionHead(props) {
+  return React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:10,marginBottom:14,marginTop:props.top?props.top:0 } },
+    React.createElement("span", { style:{ fontSize:20 } }, props.emoji),
+    React.createElement("div", { style:{ fontSize:13,fontWeight:700,color:props.color||"#f0ede6",letterSpacing:"0.01em" } }, props.label),
+    props.sub && React.createElement("span", { style:{ fontSize:11,color:"#5a5550",marginLeft:4 } }, props.sub)
+  );
+}
+
+// ── CONFIDENCE SCORE ─────────────────────────────────────────
+function ConfidenceBadge(props) {
+  var score = props.score;
+  var color = score>=90?"#56c88c":score>=80?"#ffc850":"#b088ff";
+  var bg    = score>=90?"rgba(86,200,140,0.12)":score>=80?"rgba(255,200,80,0.12)":"rgba(176,136,255,0.12)";
+  var bdr   = score>=90?"rgba(86,200,140,0.3)":score>=80?"rgba(255,200,80,0.3)":"rgba(176,136,255,0.3)";
+  return React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:5,padding:"4px 10px",borderRadius:20,background:bg,border:"1px solid "+bdr } },
+    React.createElement("div", { style:{ width:6,height:6,borderRadius:"50%",background:color,boxShadow:"0 0 6px "+color } }),
+    React.createElement("span", { style:{ fontSize:12,fontWeight:700,color:color } }, score+"%")
+  );
+}
+
+// ── SETTINGS ─────────────────────────────────────────────────
+function SettingsScreen(props) {
+  var ks = useState(!!props.currentKey); var hasKey=ks[0],setHasKey=ks[1];
+  var ky = useState(""); var key=ky[0],setKey=ky[1];
+  var er = useState(""); var error=er[0],setError=er[1];
+  var ts = useState(false); var testing=ts[0],setTesting=ts[1];
+  var sv = useState(false); var saved=sv[0],setSaved=sv[1];
+  var ed = useState(!props.currentKey); var editing=ed[0],setEditing=ed[1];
+
+  function handleSave() {
+    var t = key.trim();
+    if (!t.startsWith("sk-ant-")) { setError("Keys start with sk-ant- — check and try again."); return; }
+    setTesting(true); setError("");
+    fetch("https://api.anthropic.com/v1/messages", { method:"POST", headers:{"Content-Type":"application/json","x-api-key":t,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"}, body:JSON.stringify({model:"claude-haiku-4-5-20251001",max_tokens:10,messages:[{role:"user",content:"hi"}]}) })
+      .then(function(res){
+        if (res.status===401) { setError("Invalid key — double-check and try again."); setTesting(false); return; }
+        ls.setStr("skedaddle_apikey",t); props.onSave(t); setEditing(false); setHasKey(true); setSaved(true); setKey("");
+        setTesting(false);
+      })
+      .catch(function(){ setError("Couldn't reach Anthropic — check your connection."); setTesting(false); });
+  }
+  function handleRemove() {
+    if (!window.confirm("Remove your API key?")) return;
+    ls.del("skedaddle_apikey"); props.onSave(""); setHasKey(false); setEditing(true); setSaved(false); setKey(""); setError("");
+  }
+  function clearData(type) {
+    var labels={favs:"saved places",history:"search history"};
+    if (!window.confirm("Clear your "+labels[type]+"?")) return;
+    ls.del("skedaddle_"+type); window.location.reload();
+  }
+  var card = { background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:18,padding:22,marginBottom:14 };
+  return React.createElement("div", { style:BG },
+    React.createElement(Orbs),
+    React.createElement("div", { style:PAGE },
+      React.createElement("h2", { style:{ fontFamily:"'Fraunces',serif",fontSize:34,fontWeight:900,margin:"0 0 28px",color:"#f8f4ee",letterSpacing:"-0.02em" } }, "Settings"),
+      React.createElement("div", { style:card },
+        React.createElement("div", { style:{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 } },
+          React.createElement("div", null,
+            React.createElement("div", { style:{ fontSize:13,fontWeight:700,color:"#56c88c",marginBottom:3 } }, "Anthropic API Key"),
+            React.createElement("div", { style:{ fontSize:12,color:"#6a6560" } }, "Powers the AI search")
+          ),
+          hasKey&&!editing&&React.createElement("button", { onClick:function(){setKey("");setEditing(true);setSaved(false);setError("");}, style:{ background:"rgba(86,200,140,0.1)",border:"1px solid rgba(86,200,140,0.25)",borderRadius:10,padding:"6px 12px",color:"#56c88c",fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"'DM Sans',sans-serif" } }, "Change")
+        ),
+        hasKey&&!editing&&React.createElement(React.Fragment, null,
+          saved&&React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:8,padding:"10px 14px",borderRadius:10,background:"rgba(86,200,140,0.08)",border:"1px solid rgba(86,200,140,0.2)",marginBottom:10 } },
+            React.createElement("span", { style:{ color:"#56c88c",fontSize:16 } }, "✓"),
+            React.createElement("span", { style:{ fontSize:13,color:"#56c88c",fontWeight:600 } }, "Key saved and verified")
+          ),
+          React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:10 } },
+            React.createElement("div", { style:{ flex:1,padding:"11px 14px",borderRadius:10,background:"rgba(255,255,255,0.03)",border:"1px solid rgba(255,255,255,0.07)",fontSize:14,color:"#c8c3b8",fontFamily:"monospace" } }, "sk-ant-••••••••••••"),
+            React.createElement("button", { onClick:handleRemove, style:{ padding:"11px 14px",borderRadius:10,background:"rgba(255,80,80,0.08)",border:"1px solid rgba(255,80,80,0.18)",color:"#ff8080",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"'DM Sans',sans-serif" } }, "Remove")
+          )
+        ),
+        editing&&React.createElement(React.Fragment, null,
+          React.createElement("input", { type:"password", placeholder:"sk-ant-api03-...", value:key, autoFocus:true, onChange:function(e){setKey(e.target.value);setError("");}, style:{ width:"100%",padding:"12px 14px",borderRadius:11,background:"rgba(255,255,255,0.05)",border:error?"1px solid rgba(255,80,80,0.5)":"1px solid rgba(255,255,255,0.12)",color:"#f0ede6",fontSize:14,outline:"none",marginBottom:error?8:10,fontFamily:"'DM Sans',sans-serif" } }),
+          error&&React.createElement("div", { style:{ fontSize:12,color:"#ff6060",marginBottom:10,lineHeight:1.5 } }, "⚠️ "+error),
+          React.createElement("div", { style:{ display:"flex",gap:8 } },
+            React.createElement("button", { onClick:handleSave, disabled:!key.trim()||testing, style:{ flex:1,padding:11,borderRadius:10,background:key.trim()&&!testing?"linear-gradient(135deg,#56c88c,#2ea868)":"rgba(255,255,255,0.06)",color:key.trim()&&!testing?"#071a10":"#444",border:"none",cursor:key.trim()&&!testing?"pointer":"not-allowed",fontWeight:700,fontSize:13,fontFamily:"'DM Sans',sans-serif" } }, testing?"Verifying...":"Save key"),
+            hasKey&&React.createElement("button", { onClick:function(){setEditing(false);setKey("");setError("");}, style:{ padding:"11px 16px",borderRadius:10,background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.1)",color:"#9a958f",cursor:"pointer",fontSize:13,fontFamily:"'DM Sans',sans-serif" } }, "Cancel")
+          )
+        ),
+        React.createElement("div", { style:{ marginTop:12,fontSize:12,color:"#5a5550",lineHeight:1.6 } }, "🔒 Stored on this device only. ",
+          React.createElement("a", { href:"https://console.anthropic.com/keys", target:"_blank", style:{ color:"#56c88c",textDecoration:"none" } }, "Get a key →")
+        )
+      ),
+      React.createElement("div", { style:card },
+        React.createElement("div", { style:{ fontSize:13,fontWeight:700,color:"#56c88c",marginBottom:16 } }, "Data & Storage"),
+        [{k:"favs",label:"Saved places",icon:"⭐"},{k:"history",label:"Search history",icon:"🕓"}].map(function(item){
+          return React.createElement("div", { key:item.k, style:{ display:"flex",alignItems:"center",gap:12,marginBottom:10 } },
+            React.createElement("span", { style:{ fontSize:18,width:28,textAlign:"center",flexShrink:0 } }, item.icon),
+            React.createElement("div", { style:{ flex:1,fontSize:14,fontWeight:600,color:"#c8c3b8" } }, item.label),
+            React.createElement("button", { onClick:function(){clearData(item.k);}, style:{ padding:"6px 12px",borderRadius:9,background:"rgba(255,80,80,0.08)",border:"1px solid rgba(255,80,80,0.18)",color:"#ff8080",fontSize:11,cursor:"pointer",fontWeight:600,flexShrink:0,fontFamily:"'DM Sans',sans-serif" } }, "Clear")
+          );
+        }),
+      ),
+      React.createElement("div", { style:card },
+        React.createElement("div", { style:{ fontSize:13,fontWeight:700,color:"#56c88c",marginBottom:14 } }, "About"),
+        [{label:"App",value:"Skedaddle"},{label:"Version",value:"2.0.0"},{label:"Model",value:"claude-sonnet-4-6"}].map(function(row){
+          return React.createElement("div", { key:row.label, style:{ display:"flex",justifyContent:"space-between",paddingBottom:10,marginBottom:10,borderBottom:"1px solid rgba(255,255,255,0.05)" } },
+            React.createElement("span", { style:{ fontSize:13,color:"#6a6560" } }, row.label),
+            React.createElement("span", { style:{ fontSize:13,color:"#c8c3b8",fontWeight:600 } }, row.value)
+          );
+        })
+      )
+    ),
+    React.createElement(NavBar, { left: React.createElement(NavBtn, { onClick:props.onBack }, "← Back") })
+  );
+}
+
+// ── FAVOURITES HELPERS ────────────────────────────────────────
+function favKey(item) { return (item.name||"")+"__"+(item.type||item.when||""); }
+
+function HeartBtn(props) {
+  // props: saved, onToggle
+  var pressed = useState(false); var isPressed=pressed[0],setIsPressed=pressed[1];
+  function handleClick(e) {
+    e.preventDefault(); e.stopPropagation();
+    setIsPressed(true);
+    setTimeout(function(){ setIsPressed(false); }, 200);
+    props.onToggle();
+  }
+  return React.createElement("button", {
+    onClick:handleClick,
+    style:{ background:"none",border:"none",cursor:"pointer",padding:"4px 6px",fontSize:18,lineHeight:1,
+      transform:isPressed?"scale(1.4)":"scale(1)", transition:"transform 0.15s cubic-bezier(0.34,1.56,0.64,1)",
+      flexShrink:0, color: props.saved ? "#ff6b8a" : "#5a5550"
+    }
+  }, props.saved ? "♥" : "♡");
+}
+
+// ── EATS CARD ────────────────────────────────────────────────
+function EatCard(props) {
+  var dest = props.place;
+  var vis = useState(false); var visible=vis[0],setVisible=vis[1];
+  var saved = props.favs && props.favs[favKey(dest)];
+  useEffect(function(){ var t=setTimeout(function(){setVisible(true);},props.index*80); return function(){clearTimeout(t);}; },[]);
+  return React.createElement("div", {
+    style:{ opacity:visible?1:0, transform:visible?"translateY(0)":"translateY(20px)", transition:"all 0.45s cubic-bezier(0.22,1,0.36,1)", background:"rgba(255,255,255,0.035)", border: saved?"1px solid rgba(255,107,138,0.3)":"1px solid rgba(255,255,255,0.08)", borderRadius:18, padding:18, position:"relative", overflow:"hidden" }
+  },
+    React.createElement("div", { style:{ position:"absolute",top:0,left:0,right:0,height:3,background:"linear-gradient(90deg,#56c88c,#2ea868)" } }),
+    React.createElement("div", { style:{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10 } },
+      React.createElement("div", { style:{ flex:1 } },
+        React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:8,marginBottom:4 } },
+          React.createElement("span", { style:{ fontSize:20 } }, dest.emoji),
+          React.createElement("h3", { style:{ margin:0,fontSize:17,fontWeight:700,color:"#f8f4ee",fontFamily:"'Fraunces',serif",lineHeight:1.2 } }, dest.name)
+        ),
+        React.createElement("div", { style:{ fontSize:12,color:"#7a7570",marginBottom:4 } }, dest.type+" · "+dest.price+" · "+dest.hours)
+      ),
+      React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:6 } },
+        React.createElement(HeartBtn, { saved:saved, onToggle:function(){ props.onToggleFav(dest,"eat"); } }),
+        React.createElement(ConfidenceBadge, { score:dest.confidence })
+      )
+    ),
+    React.createElement("p", { style:{ margin:"0 0 10px",fontSize:13,color:"#b0aba4",lineHeight:1.6 } }, dest.why),
+    React.createElement("div", { style:{ display:"flex",alignItems:"center",justifyContent:"space-between" } },
+      React.createElement("div", { style:{ display:"flex",gap:6,flexWrap:"wrap" } },
+        (dest.tags||[]).map(function(tag){ return React.createElement(Tag, { key:tag }, tag); })
+      ),
+      React.createElement("a", { href:dest.maps, target:"_blank", style:{ fontSize:12,color:"#56c88c",fontWeight:700,flexShrink:0,marginLeft:10 } }, "Maps →")
+    )
+  );
+}
+
+// ── EVENT CARD ───────────────────────────────────────────────
+function EventCard(props) {
+  var ev = props.event;
+  var saved = props.favs && props.favs[favKey(ev)];
+  return React.createElement("div", { style:{ display:"flex",gap:14,padding:"14px 0",borderBottom:"1px solid rgba(255,255,255,0.05)",alignItems:"flex-start" } },
+    React.createElement("div", { style:{ fontSize:28,flexShrink:0,width:36,textAlign:"center" } }, ev.emoji),
+    React.createElement("div", { style:{ flex:1,minWidth:0 } },
+      React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:3 } }, ev.name),
+      React.createElement("div", { style:{ fontSize:12,color:"#56c88c",fontWeight:600,marginBottom:4 } }, ev.when+" · "+ev.where),
+      React.createElement("div", { style:{ fontSize:13,color:"#7a7570",lineHeight:1.5 } }, ev.desc)
+    ),
+    React.createElement(HeartBtn, { saved:saved, onToggle:function(){ props.onToggleFav(ev,"event"); } })
+  );
+}
+
+// ── LOCAL CARD ───────────────────────────────────────────────
+function LocalCard(props) {
+  var pl = props.place;
+  var saved = props.favs && props.favs[favKey(pl)];
+  return React.createElement("div", { style:{ display:"flex",gap:12,padding:"12px 0",borderBottom:"1px solid rgba(255,255,255,0.05)",alignItems:"center" } },
+    React.createElement("div", { style:{ fontSize:24,flexShrink:0,width:32,textAlign:"center",paddingTop:2 } }, pl.emoji),
+    React.createElement("div", { style:{ flex:1,minWidth:0 } },
+      React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:2 } }, pl.name),
+      React.createElement("div", { style:{ fontSize:11,color:"#b088ff",fontWeight:600,marginBottom:4 } }, pl.type+(pl.suburb?" · "+pl.suburb:"")),
+      React.createElement("div", { style:{ fontSize:13,color:"#7a7570",lineHeight:1.5 } }, pl.desc)
+    ),
+    React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:4,flexShrink:0 } },
+      React.createElement(HeartBtn, { saved:saved, onToggle:function(){ props.onToggleFav(pl,"local"); } }),
+      pl.maps && React.createElement("a", { href:pl.maps, target:"_blank", style:{ fontSize:12,color:"#56c88c",fontWeight:700,paddingLeft:4 } }, "→")
+    )
+  );
+}
+
+// ── SUBURB AUTOCOMPLETE ───────────────────────────────────────
+function SuburbAutocomplete(props) {
+  // props: value, onChange(displayName), onSelect(displayName)
+  var sug = useState([]); var suggestions=sug[0],setSuggestions=sug[1];
+  var loading = useState(false); var isLoading=loading[0],setIsLoading=loading[1];
+  var open = useState(false); var isOpen=open[0],setIsOpen=open[1];
+  var timerRef = useRef(null);
+  var wrapRef = useRef(null);
+
+  function search(q) {
+    if (q.length < 2) { setSuggestions([]); setIsOpen(false); return; }
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(function(){
+      setIsLoading(true);
+      fetch("https://nominatim.openstreetmap.org/search?q="+encodeURIComponent(q)+"&format=json&addressdetails=1&limit=6")
+        .then(function(r){ return r.json(); })
+        .then(function(results){
+          var mapped = results.map(function(r){
+            var a = r.address||{};
+            var suburb = a.suburb||a.town||a.city_district||a.village||a.municipality||"";
+            var state  = a.state_district||a.state||"";
+            var display = suburb ? (suburb+(state?" · "+state:"")) : r.display_name.split(",").slice(0,2).join(",").trim();
+            return { display:display, suburb:suburb||display };
+          }).filter(function(r,i,arr){
+            return r.display && arr.findIndex(function(x){ return x.display===r.display; })===i;
+          });
+          setSuggestions(mapped);
+          setIsOpen(mapped.length > 0);
+          setIsLoading(false);
+        })
+        .catch(function(){ setIsLoading(false); });
+    }, 300);
+  }
+
+  // Close dropdown on outside click
+  useEffect(function(){
+    function handler(e){ if(wrapRef.current && !wrapRef.current.contains(e.target)){ setIsOpen(false); } }
+    document.addEventListener("mousedown", handler);
+    return function(){ document.removeEventListener("mousedown", handler); };
+  }, []);
+
+  return React.createElement("div", { ref:wrapRef, style:{ position:"relative" } },
+    React.createElement("div", { style:{ position:"relative" } },
+      React.createElement("input", {
+        type:"text",
+        placeholder:"e.g. Coogee, Seminyak, Shibuya...",
+        value:props.value,
+        autoFocus:true,
+        onChange:function(e){ props.onChange(e.target.value); search(e.target.value); },
+        onFocus:function(){ if(suggestions.length) setIsOpen(true); },
+        onKeyDown:function(e){
+          if(e.key==="Escape"){ setIsOpen(false); }
+          if(e.key==="Enter"&&props.value.trim()){ setIsOpen(false); props.onSelect(props.value.trim()); }
+        },
+        style:{ width:"100%",padding:"12px 38px 12px 14px",borderRadius:12,background:"rgba(255,255,255,0.07)",border:"1px solid rgba(86,200,140,0.35)",color:"#f0ede6",fontSize:15,outline:"none",fontFamily:"'DM Sans',sans-serif",boxSizing:"border-box" }
+      }),
+      isLoading && React.createElement("div", { style:{ position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:14,animation:"pulse 1s infinite" } }, "⏳")
+    ),
+    isOpen && React.createElement("div", { style:{ position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#1a2a22",border:"1px solid rgba(86,200,140,0.25)",borderRadius:12,overflow:"hidden",zIndex:100,boxShadow:"0 8px 32px rgba(0,0,0,0.5)" } },
+      suggestions.map(function(s,i){
+        return React.createElement("div", {
+          key:i,
+          onMouseDown:function(e){ e.preventDefault(); props.onSelect(s.suburb); setSuggestions([]); setIsOpen(false); },
+          style:{ padding:"11px 16px",fontSize:14,color:"#f0ede6",cursor:"pointer",borderBottom:i<suggestions.length-1?"1px solid rgba(255,255,255,0.05)":"none",display:"flex",alignItems:"center",gap:10 }
+        },
+          React.createElement("span", { style:{ fontSize:14,flexShrink:0 } }, "📍"),
+          React.createElement("span", null, s.display)
+        );
+      })
+    )
+  );
+}
+
+// ── HOME SCREEN ──────────────────────────────────────────────
+function HomeScreen(props) {
+  var apiKey = props.apiKey;
+  var subst = useState(null); var suburb=subst[0],setSuburb=subst[1];
+  var locLoad = useState(true); var locLoading=locLoad[0],setLocLoading=locLoad[1];
+  var locErr = useState(false); var locError=locErr[0],setLocError=locErr[1];
+  var manMode = useState(false); var manualMode=manMode[0],setManualMode=manMode[1];
+  var manInp = useState(""); var manualInput=manInp[0],setManualInput=manInp[1];
+  useEffect(function(){
+    if (!navigator.geolocation) { setLocError(true); setLocLoading(false); setManualMode(true); return; }
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        var lat=pos.coords.latitude, lon=pos.coords.longitude;
+        fetch("https://nominatim.openstreetmap.org/reverse?lat="+lat+"&lon="+lon+"&format=json")
+          .then(function(r){ return r.json(); })
+          .then(function(d){
+            var s = (d.address&&(d.address.suburb||d.address.town||d.address.city_district||d.address.city))||"your area";
+            setSuburb(s); setManualInput(s); setLocLoading(false);
+          })
+          .catch(function(){ setSuburb("Near you"); setManualInput("Near you"); setLocLoading(false); });
+      },
+      function() { setLocError(true); setLocLoading(false); setManualMode(true); }
+    );
+  }, []);
+
+  return React.createElement("div", { style:BG },
+    React.createElement(Orbs),
+    React.createElement("div", { style:PAGE },
+      React.createElement("div", { style:{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:36 } },
+        React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:8 } },
+          React.createElement("span", { style:{ fontSize:22 } }, "🏃"),
+          React.createElement("span", { style:{ fontFamily:"'Fraunces',serif",fontWeight:900,fontSize:20,color:"#f8f4ee",letterSpacing:"-0.02em" } }, "Skedaddle")
+        ),
+        React.createElement("button", { onClick:props.onSettings, style:{ background:"rgba(255,255,255,0.05)",border:"1px solid rgba(255,255,255,0.09)",borderRadius:10,padding:"7px 12px",color:"#9a958f",fontSize:13,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" } }, "⚙️")
+      ),
+
+      React.createElement("div", { style:{ marginBottom:40 } },
+        React.createElement("h1", { style:{ fontFamily:"'Fraunces',serif",fontWeight:900,fontSize:"clamp(40px,11vw,56px)",lineHeight:1.0,margin:"0 0 16px",color:"#f8f4ee",letterSpacing:"-0.02em" } },
+          "What's good",
+          React.createElement("br"),
+          React.createElement("span", { style:{ color:"#56c88c" } }, "near you?")
+        ),
+        React.createElement("p", { style:{ fontSize:15,color:"#7a7570",lineHeight:1.7,margin:0,maxWidth:300 } },
+          "Top eats, what's on today, and anything worth knowing in your neighbourhood."
+        )
+      ),
+
+      React.createElement("div", { style:{ background:"rgba(86,200,140,0.07)",border:"1px solid rgba(86,200,140,0.18)",borderRadius:18,padding:"18px 20px",marginBottom:28 } },
+        React.createElement("div", { style:{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 } },
+          React.createElement("div", { style:{ fontSize:11,color:"#56c88c",fontWeight:700,letterSpacing:"0.1em" } }, "YOUR LOCATION"),
+          React.createElement("button", {
+            onClick:function(){ setManualMode(function(m){return !m;}); },
+            style:{ background:"none",border:"none",fontSize:11,color:"#56c88c",cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif",fontWeight:600 }
+          }, manualMode?"Use my location ↩":"Change →")
+        ),
+        !manualMode && React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:10 } },
+          React.createElement("span", { style:{ fontSize:22 } }, locLoading?"⏳":locError?"❌":"📍"),
+          React.createElement("div", null,
+            React.createElement("div", { style:{ fontSize:17,fontWeight:700,color:"#f8f4ee" } }, locLoading?"Detecting...":locError?"Couldn't detect location":(suburb||"Detecting...")),
+            !locError && !locLoading && React.createElement("div", { style:{ fontSize:12,color:"#5a7560",marginTop:2 } }, "Detected automatically")
+          )
+        ),
+        manualMode && React.createElement(SuburbAutocomplete, {
+          value: manualInput,
+          onChange: function(v){ setManualInput(v); setSuburb(v); },
+          onSelect: function(s){ setManualInput(s); setSuburb(s); }
+        }),
+        locError && !manualMode && React.createElement("button", { onClick:function(){ setManualMode(true); }, style:{ marginTop:10,fontSize:12,color:"#56c88c",background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"'DM Sans',sans-serif" } }, "Enter suburb manually →")
+      ),
+
+      !apiKey&&!DEMO_MODE&&React.createElement("div", { onClick:props.onSettings, style:{ background:"rgba(255,200,80,0.07)",border:"1px solid rgba(255,200,80,0.2)",borderRadius:14,padding:"12px 16px",marginBottom:20,display:"flex",alignItems:"center",gap:12,cursor:"pointer" } },
+        React.createElement("span", { style:{ fontSize:20,flexShrink:0 } }, "🔑"),
+        React.createElement("div", { style:{ flex:1 } },
+          React.createElement("div", { style:{ fontSize:13,fontWeight:700,color:"#ffc850",marginBottom:2 } }, "Add your API key to get started"),
+          React.createElement("div", { style:{ fontSize:12,color:"#8a8070" } }, "Tap to open Settings")
+        ),
+        React.createElement("span", { style:{ fontSize:12,color:"#ffc850",opacity:0.7 } }, "→")
+      ),
+
+      DEMO_MODE&&React.createElement("div", { style:{ padding:"10px 14px",background:"rgba(255,200,80,0.08)",border:"1px solid rgba(255,200,80,0.2)",borderRadius:12,marginBottom:20,fontSize:12,color:"#ffc850",textAlign:"center" } },
+        "🧪 Demo mode — showing sample results for Coogee"
+      ),
+
+      React.createElement("button", {
+        onClick:function(){
+          var loc = DEMO_MODE ? MOCK_SUBURB : (manualMode ? (manualInput.trim()||"your area") : (suburb||"your area"));
+          props.onSearch(loc);
+        },
+        disabled: !DEMO_MODE && !apiKey,
+        style:{ width:"100%",padding:20,borderRadius:18,background:(!DEMO_MODE&&!apiKey)?"rgba(255,255,255,0.04)":"linear-gradient(135deg,#56c88c,#2ea868)",color:(!DEMO_MODE&&!apiKey)?"#5a5550":"#071a10",border:"none",cursor:(!DEMO_MODE&&!apiKey)?"not-allowed":"pointer",fontSize:18,fontWeight:700,fontFamily:"'DM Sans',sans-serif",letterSpacing:"-0.01em" }
+      }, "Search nearby 🔍")
+    )
+  );
+}
+
+// ── RESULTS SCREEN ───────────────────────────────────────────
+function ResultsScreen(props) {
+  var suburb = props.suburb;
+  var loading = props.loading;
+  var results = props.results;
+  var error   = props.error;
+  var favs    = props.favs || {};
+  var toggleFav = props.onToggleFav || function(){};
+  var tab = useState("eats"); var activeTab=tab[0],setActiveTab=tab[1];
+
+  var favList = Object.values(favs);
+  var favCount = favList.length;
+
+  var tabs = [
+    { id:"eats",   label:"Top Eats",    emoji:"🍽️" },
+    { id:"events", label:"What's On",   emoji:"📅" },
+    { id:"local",  label:"Nearby",      emoji:"🛍️" },
+    { id:"favs",   label:"Saved",       emoji:"♥", count:favCount },
+  ];
+
+  return React.createElement("div", { style:BG },
+    React.createElement(Orbs),
+    React.createElement("div", { style:PAGE },
+      React.createElement("div", { style:{ marginBottom:20 } },
+        React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:8,marginBottom:6 } },
+          React.createElement("span", { style:{ fontSize:18 } }, "📍"),
+          React.createElement("span", { style:{ fontSize:13,color:"#56c88c",fontWeight:700 } }, suburb)
+        ),
+        React.createElement("h2", { style:{ fontFamily:"'Fraunces',serif",fontSize:30,fontWeight:900,margin:0,color:"#f8f4ee",letterSpacing:"-0.02em" } }, "What's nearby"),
+        DEMO_MODE&&React.createElement("div", { style:{ marginTop:8,padding:"7px 12px",background:"rgba(255,200,80,0.08)",border:"1px solid rgba(255,200,80,0.2)",borderRadius:10,fontSize:11,color:"#ffc850",display:"inline-block" } }, "🧪 Demo results"),
+        !DEMO_MODE&&WORKER_URL&&React.createElement("div", { style:{ marginTop:8,padding:"7px 12px",background:"rgba(176,136,255,0.08)",border:"1px solid rgba(176,136,255,0.2)",borderRadius:10,fontSize:11,color:"#b088ff",display:"inline-block" } }, "🔍 Live web search")
+      ),
+
+      // Tabs
+      React.createElement("div", { style:{ display:"flex",gap:4,marginBottom:22,background:"rgba(255,255,255,0.04)",borderRadius:14,padding:4 } },
+        tabs.map(function(t){
+          var active = activeTab===t.id;
+          var isFavTab = t.id==="favs";
+          var activeColor = isFavTab ? "#ff6b8a" : "#56c88c";
+          var activeBg    = isFavTab ? "rgba(255,107,138,0.18)" : "rgba(86,200,140,0.18)";
+          var activeBorder= isFavTab ? "1px solid rgba(255,107,138,0.3)" : "1px solid rgba(86,200,140,0.3)";
+          return React.createElement("button", { key:t.id, onClick:function(){setActiveTab(t.id);}, style:{ flex:1,padding:"9px 2px",borderRadius:11,background:active?activeBg:"transparent",border:active?activeBorder:"1px solid transparent",color:active?activeColor:"#7a7570",fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s",position:"relative" } },
+            React.createElement("div", null, t.emoji),
+            React.createElement("div", { style:{ marginTop:2 } }, t.label),
+            t.count ? React.createElement("div", { style:{ position:"absolute",top:4,right:4,background:"#ff6b8a",color:"#fff",fontSize:9,fontWeight:700,borderRadius:99,minWidth:14,height:14,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 3px" } }, t.count) : null
+          );
+        })
+      ),
+
+      // Loading
+      loading&&React.createElement("div", { style:{ textAlign:"center",padding:"80px 0" } },
+        React.createElement("div", { style:{ fontSize:42,marginBottom:20,display:"inline-block",animation:"bounce 0.8s ease-in-out infinite alternate" } }, "🏃"),
+        React.createElement("div", { style:{ color:"#56c88c",fontSize:14,letterSpacing:"0.08em" } }, "Searching nearby...")
+      ),
+
+      // Error
+      error&&React.createElement("div", { style:{ textAlign:"center",padding:"60px 20px" } },
+        React.createElement("div", { style:{ fontSize:32,marginBottom:16 } }, "😅"),
+        React.createElement("div", { style:{ color:"#9a958f",marginBottom:24,fontSize:14,lineHeight:1.6 } }, error),
+        React.createElement("button", { onClick:function(){props.onRetry(suburb);}, style:{ padding:"12px 28px",borderRadius:12,background:"#56c88c",color:"#071a10",border:"none",cursor:"pointer",fontWeight:700,fontFamily:"'DM Sans',sans-serif" } }, "Try again")
+      ),
+
+      // Results
+      results&&React.createElement("div", null,
+        activeTab==="eats"&&React.createElement("div", null,
+          React.createElement("div", { style:{ fontSize:11,color:"#5a5550",marginBottom:18,lineHeight:1.6 } }, "Confidence score reflects how consistently well-reviewed each place is across sources."),
+          [
+            { key:"breakfast", emoji:"🌅", label:"Breakfast & Brunch" },
+            { key:"lunch",     emoji:"☀️",  label:"Lunch" },
+            { key:"dinner",    emoji:"🌙", label:"Dinner" },
+            { key:"bars",      emoji:"🍸", label:"Bars & Pubs" },
+          ].map(function(section) {
+            var places = (results.eats&&results.eats[section.key])||[];
+            if (!places.length) return null;
+            return React.createElement("div", { key:section.key, style:{ marginBottom:24 } },
+              React.createElement("div", { style:{ display:"flex",alignItems:"center",gap:8,marginBottom:12 } },
+                React.createElement("span", { style:{ fontSize:16 } }, section.emoji),
+                React.createElement("span", { style:{ fontSize:13,fontWeight:700,color:"#9a958f",letterSpacing:"0.04em",textTransform:"uppercase" } }, section.label)
+              ),
+              React.createElement("div", { style:{ display:"flex",flexDirection:"column",gap:12 } },
+                places.map(function(place,i){ return React.createElement(EatCard, { key:i, place:place, index:i, favs:favs, onToggleFav:toggleFav }); })
+              )
+            );
+          })
+        ),
+        activeTab==="events"&&React.createElement("div", null,
+          React.createElement(Card, { style:{ padding:0,overflow:"hidden" } },
+            React.createElement("div", { style:{ padding:"16px 18px 0" } },
+              React.createElement(SectionHead, { emoji:"📅", label:"Today & this weekend", color:"#ffc850" })
+            ),
+            React.createElement("div", { style:{ padding:"0 18px" } },
+              (results.events||[]).map(function(ev,i){ return React.createElement(EventCard, { key:i, event:ev, favs:favs, onToggleFav:toggleFav }); })
+            ),
+            (results.events||[]).length===0&&React.createElement("div", { style:{ padding:"20px 18px 18px",fontSize:14,color:"#5a5550" } }, "Nothing found for this weekend yet.")
+          )
+        ),
+        activeTab==="local"&&React.createElement("div", null,
+          React.createElement(Card, { style:{ padding:0,overflow:"hidden" } },
+            React.createElement("div", { style:{ padding:"16px 18px 0" } },
+              React.createElement(SectionHead, { emoji:"🛍️", label:"Markets & local spots", color:"#b088ff" })
+            ),
+            React.createElement("div", { style:{ padding:"0 18px" } },
+              (results.local||[]).map(function(pl,i){ return React.createElement(LocalCard, { key:i, place:pl, favs:favs, onToggleFav:toggleFav }); })
+            )
+          )
+        ),
+        activeTab==="favs"&&React.createElement("div", null,
+          favList.length===0
+            ? React.createElement("div", { style:{ textAlign:"center",padding:"60px 20px" } },
+                React.createElement("div", { style:{ fontSize:48,marginBottom:16 } }, "♡"),
+                React.createElement("div", { style:{ color:"#9a958f",fontSize:14,lineHeight:1.7 } }, "Tap ♡ on any place or event to save it here.")
+              )
+            : React.createElement("div", { style:{ display:"flex",flexDirection:"column",gap:0 } },
+                React.createElement("div", { style:{ fontSize:11,color:"#5a5550",marginBottom:16,lineHeight:1.6 } }, favList.length+" saved "+( favList.length===1?"item":"items")+" — tap ♥ on any card to remove."),
+                React.createElement(Card, { style:{ padding:"0 18px",overflow:"hidden" } },
+                  favList.map(function(item,i){
+                    var k = favKey(item);
+                    if (item._kind==="eat") {
+                      return React.createElement("div", { key:k, style:{ borderBottom:i<favList.length-1?"1px solid rgba(255,255,255,0.05)":"none",padding:"12px 0",display:"flex",alignItems:"flex-start",gap:10 } },
+                        React.createElement("span", { style:{ fontSize:20,flexShrink:0 } }, item.emoji),
+                        React.createElement("div", { style:{ flex:1,minWidth:0 } },
+                          React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:2 } }, item.name),
+                          React.createElement("div", { style:{ fontSize:12,color:"#7a7570" } }, item.type+" · "+item.price),
+                          item.maps&&React.createElement("a", { href:item.maps, target:"_blank", style:{ fontSize:12,color:"#56c88c",fontWeight:700 } }, "Maps →")
+                        ),
+                        React.createElement(HeartBtn, { saved:true, onToggle:function(){ toggleFav(item,item._kind); } })
+                      );
+                    }
+                    if (item._kind==="event") {
+                      return React.createElement("div", { key:k, style:{ borderBottom:i<favList.length-1?"1px solid rgba(255,255,255,0.05)":"none",padding:"12px 0",display:"flex",alignItems:"flex-start",gap:10 } },
+                        React.createElement("span", { style:{ fontSize:20,flexShrink:0 } }, item.emoji),
+                        React.createElement("div", { style:{ flex:1,minWidth:0 } },
+                          React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:2 } }, item.name),
+                          React.createElement("div", { style:{ fontSize:12,color:"#56c88c",fontWeight:600 } }, item.when+" · "+item.where)
+                        ),
+                        React.createElement(HeartBtn, { saved:true, onToggle:function(){ toggleFav(item,item._kind); } })
+                      );
+                    }
+                    return React.createElement("div", { key:k, style:{ borderBottom:i<favList.length-1?"1px solid rgba(255,255,255,0.05)":"none",padding:"12px 0",display:"flex",alignItems:"flex-start",gap:10 } },
+                      React.createElement("span", { style:{ fontSize:20,flexShrink:0 } }, item.emoji),
+                      React.createElement("div", { style:{ flex:1,minWidth:0 } },
+                        React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:2 } }, item.name),
+                        React.createElement("div", { style:{ fontSize:12,color:"#b088ff",fontWeight:600 } }, item.type+(item.suburb?" · "+item.suburb:"")),
+                        item.maps&&React.createElement("a", { href:item.maps, target:"_blank", style:{ fontSize:12,color:"#56c88c",fontWeight:700 } }, "Maps →")
+                      ),
+                      React.createElement(HeartBtn, { saved:true, onToggle:function(){ toggleFav(item,item._kind); } })
+                    );
+                  })
+                )
+              )
+        )
+      )
+    ),
+    React.createElement(NavBar, {
+      left: React.createElement(NavBtn, { onClick:props.onBack }, "← Back"),
+      right: React.createElement(NavBtn, { onClick:function(){props.onRetry(suburb);}, accent:false }, "Refresh 🔄")
+    })
+  );
+}
+
+// ── API CALL ─────────────────────────────────────────────────
+function buildPrompt(suburb) {
+  var d = new Date();
+  var dateStr = d.toDateString();
+  return "You are a knowledgeable local guide for " + suburb + ".\nToday is " + dateStr + ".\n" +
+    (WORKER_URL ? "Use web search to find current, real information for today and this weekend.\n" : "") +
+    "Return ONLY valid JSON (no markdown) with this structure:\n" +
+    "{\"eats\":{" +
+    "\"breakfast\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Cafe|Bakery|Brunch\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
+    "\"lunch\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Restaurant|Cafe|Bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
+    "\"dinner\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Restaurant|Bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Opens Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
+    "\"bars\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Bar|Pub|Wine bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xam\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]" +
+    "},\n" +
+    "\"events\":[{\"name\":\"...\",\"emoji\":\"e\",\"when\":\"Today Xpm|Saturday Xam\",\"where\":\"venue name\",\"desc\":\"1-2 sentences\"}],\n" +
+    "\"local\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"type\",\"desc\":\"1-2 sentences\",\"suburb\":\"suburb\",\"maps\":\"https://maps.google.com/?q=...\"}]}\n\n" +
+    "For eats: 2 breakfast spots (cafes, bakeries, brunch), 2 lunch spots (restaurants, cafes, pubs), 2 dinner spots (restaurants, bars), 2 bars/pubs for drinks.\n" +
+    "4 events happening today or this weekend, 3 local spots worth knowing.\n" +
+    "Confidence score: 90+ = consistently excellent reviews, 80-89 = very good, 70-79 = good. Base on real reputation.\n" +
+    "All results must be real places in or very close to " + suburb + ". Use local currency symbols and local context appropriate for that location.";
+}
+
+// ── APP ROOT ─────────────────────────────────────────────────
+function App() {
+  var sc = useState("home"); var screen=sc[0],setScreen=sc[1];
+  var sub = useState(null); var suburb=sub[0],setSuburb=sub[1];
+  var ld = useState(false); var loading=ld[0],setLoading=ld[1];
+  var rs = useState(null); var results=rs[0],setResults=rs[1];
+  var er = useState(null); var error=er[0],setError=er[1];
+  var ak = useState(function(){ return ls.str("skedaddle_apikey",""); }); var apiKey=ak[0],setApiKey=ak[1];
+  var pv = useState("home"); var prev=pv[0],setPrev=pv[1];
+  var fv = useState(function(){ return ls.get("skedaddle_favs",{}); }); var favs=fv[0],setFavs=fv[1];
+
+  function toggleFav(item, kind) {
+    var k = favKey(item);
+    setFavs(function(prev) {
+      var next = Object.assign({},prev);
+      if (next[k]) { delete next[k]; }
+      else { next[k] = Object.assign({},item,{_kind:kind}); }
+      ls.set("skedaddle_favs", next);
+      return next;
+    });
+  }
+
+  function goSettings() { setPrev(screen); setScreen("settings"); }
+
+  function doSearch(s) {
+    setSuburb(s); setScreen("results"); setLoading(true); setError(null); setResults(null);
+    if (DEMO_MODE) {
+      getMockResults(s).then(function(data){ setResults(data); setLoading(false); });
+      return;
+    }
+    var prompt = buildPrompt(s);
+    var usingWorker = !!WORKER_URL;
+    var endpoint = usingWorker ? WORKER_URL : "https://api.anthropic.com/v1/messages";
+    var headers = usingWorker
+      ? { "Content-Type":"application/json" }
+      : { "Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true" };
+    var body = usingWorker
+      ? { messages:[{role:"user",content:prompt}] }
+      : { model:"claude-sonnet-4-6",max_tokens:3500,system:"You are a helpful local guide. Return only valid JSON, no markdown.",messages:[{role:"user",content:prompt}] };
+    fetch(endpoint, { method:"POST", headers:headers, body:JSON.stringify(body) })
+      .then(function(res){
+        if (!res.ok) {
+          res.json().catch(function(){return{};}).then(function(e){
+            var msg = (e&&e.error&&e.error.message)||"";
+            if (res.status===401) setError("API key rejected — check Settings.");
+            else if (res.status===429) setError("Rate limit hit — wait a moment and try again.");
+            else setError("Error "+res.status+(msg?" — "+msg:" — please try again."));
+            console.error("API error",res.status,e);
+            setLoading(false);
+          });
+          return;
+        }
+        return res.json();
+      })
+      .then(function(data){
+        if (!data) return;
+        var text = (data.content||[]).filter(function(b){return b.type==="text";}).map(function(b){return b.text;}).join("");
+        // Strip markdown code fences if present
+        var cleaned = text.replace(/```json\s*/gi,"").replace(/```\s*/g,"").trim();
+        // Find the outermost { ... } block
+        var start = cleaned.indexOf("{");
+        var end   = cleaned.lastIndexOf("}");
+        if (start===-1||end===-1||end<=start) { setError("No data returned — try again."); setLoading(false); return; }
+        var jsonStr = cleaned.slice(start, end+1);
+        try {
+          var parsed = JSON.parse(jsonStr);
+          setResults(parsed);
+        } catch(e) {
+          console.error("Parse error:", e, "\nRaw:", text.slice(0,500));
+          setError("Couldn't parse response — please try again.");
+        }
+        setLoading(false);
+      })
+      .catch(function(){ setError("Can't reach Anthropic — check your connection."); setLoading(false); });
+  }
+
+  if (screen==="settings") return React.createElement(SettingsScreen, { currentKey:apiKey, onSave:function(k){setApiKey(k);}, onBack:function(){setScreen(prev||"home");} });
+  if (screen==="results") return React.createElement(ResultsScreen, { suburb:suburb, loading:loading, results:results, error:error, favs:favs, onToggleFav:toggleFav, onBack:function(){setScreen("home");}, onRetry:doSearch });
+  return React.createElement(HomeScreen, { apiKey:apiKey, onSettings:goSettings, onSearch:doSearch });
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
+</script>
+</body>
+</html>
