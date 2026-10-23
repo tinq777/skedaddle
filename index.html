@@ -26,6 +26,7 @@
 const { useState, useEffect, useRef } = React;
 
 // ── CONFIG ────────────────────────────────────────────────────
+const VERSION    = "1.4.0";
 const DEMO_MODE  = false; // set true to use mock data without API key
 const WORKER_URL = "";    // e.g. "https://skedaddle-worker.yourname.workers.dev"
 
@@ -205,7 +206,7 @@ function SettingsScreen(props) {
       ),
       React.createElement("div", { style:card },
         React.createElement("div", { style:{ fontSize:13,fontWeight:700,color:"#56c88c",marginBottom:14 } }, "About"),
-        [{label:"App",value:"Skedaddle"},{label:"Version",value:"2.0.0"},{label:"Model",value:"claude-sonnet-4-6"}].map(function(row){
+        [{label:"App",value:"Skedaddle"},{label:"Version",value:VERSION},{label:"Model",value:"claude-sonnet-4-6"}].map(function(row){
           return React.createElement("div", { key:row.label, style:{ display:"flex",justifyContent:"space-between",paddingBottom:10,marginBottom:10,borderBottom:"1px solid rgba(255,255,255,0.05)" } },
             React.createElement("span", { style:{ fontSize:13,color:"#6a6560" } }, row.label),
             React.createElement("span", { style:{ fontSize:13,color:"#c8c3b8",fontWeight:600 } }, row.value)
@@ -280,7 +281,8 @@ function EventCard(props) {
     React.createElement("div", { style:{ flex:1,minWidth:0 } },
       React.createElement("div", { style:{ fontWeight:700,fontSize:14,color:"#f0ede6",marginBottom:3 } }, ev.name),
       React.createElement("div", { style:{ fontSize:12,color:"#56c88c",fontWeight:600,marginBottom:4 } }, ev.when+" · "+ev.where),
-      React.createElement("div", { style:{ fontSize:13,color:"#7a7570",lineHeight:1.5 } }, ev.desc)
+      React.createElement("div", { style:{ fontSize:13,color:"#7a7570",lineHeight:1.5,marginBottom:ev.maps?6:0 } }, ev.desc),
+      ev.maps&&React.createElement("a", { href:ev.maps, target:"_blank", style:{ fontSize:11,color:"#56c88c",fontWeight:700 } }, "Maps →")
     ),
     React.createElement(HeartBtn, { saved:saved, onToggle:function(){ props.onToggleFav(ev,"event"); } })
   );
@@ -314,28 +316,37 @@ function SuburbAutocomplete(props) {
   var wrapRef = useRef(null);
 
   function search(q) {
-    if (q.length < 2) { setSuggestions([]); setIsOpen(false); return; }
+    if (q.length < 1) { setSuggestions([]); setIsOpen(false); return; }
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(function(){
       setIsLoading(true);
-      fetch("https://nominatim.openstreetmap.org/search?q="+encodeURIComponent(q)+"&format=json&addressdetails=1&limit=6")
+      // featuretype=settlement speeds up suburb/city lookups; also search postalcode for numbers
+      var isPostcode = /^\d+$/.test(q.trim());
+      var url = isPostcode
+        ? "https://nominatim.openstreetmap.org/search?postalcode="+encodeURIComponent(q)+"&format=json&addressdetails=1&limit=8"
+        : "https://nominatim.openstreetmap.org/search?q="+encodeURIComponent(q)+"&format=json&addressdetails=1&limit=8&featuretype=settlement";
+      fetch(url)
         .then(function(r){ return r.json(); })
         .then(function(results){
-          var mapped = results.map(function(r){
+          var seen = {};
+          var mapped = [];
+          for (var i=0; i<results.length; i++) {
+            var r = results[i];
             var a = r.address||{};
-            var suburb = a.suburb||a.town||a.city_district||a.village||a.municipality||"";
-            var state  = a.state_district||a.state||"";
-            var display = suburb ? (suburb+(state?" · "+state:"")) : r.display_name.split(",").slice(0,2).join(",").trim();
-            return { display:display, suburb:suburb||display };
-          }).filter(function(r,i,arr){
-            return r.display && arr.findIndex(function(x){ return x.display===r.display; })===i;
-          });
+            var suburb = a.suburb||a.town||a.city_district||a.village||a.municipality||a.city||"";
+            var country = a.country||"";
+            var state   = a.state||a.state_district||"";
+            var display = suburb
+              ? (suburb + (state?" · "+state:"") + (country?" · "+country:""))
+              : r.display_name.split(",").slice(0,3).join(",").trim();
+            if (display && !seen[display]) { seen[display]=1; mapped.push({ display:display, suburb:suburb||display }); }
+          }
           setSuggestions(mapped);
           setIsOpen(mapped.length > 0);
           setIsLoading(false);
         })
         .catch(function(){ setIsLoading(false); });
-    }, 300);
+    }, 120);
   }
 
   // Close dropdown on outside click
@@ -500,7 +511,10 @@ function ResultsScreen(props) {
           React.createElement("span", { style:{ fontSize:18 } }, "📍"),
           React.createElement("span", { style:{ fontSize:13,color:"#56c88c",fontWeight:700 } }, suburb)
         ),
-        React.createElement("h2", { style:{ fontFamily:"'Fraunces',serif",fontSize:30,fontWeight:900,margin:0,color:"#f8f4ee",letterSpacing:"-0.02em" } }, "What's nearby"),
+        React.createElement("div", { style:{ display:"flex",alignItems:"baseline",gap:10 } },
+          React.createElement("h2", { style:{ fontFamily:"'Fraunces',serif",fontSize:30,fontWeight:900,margin:0,color:"#f8f4ee",letterSpacing:"-0.02em" } }, "What's nearby"),
+          React.createElement("span", { style:{ fontSize:12,color:"#7a7570",fontWeight:600 } }, (function(){ var d=new Date(); var m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; var dy=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]; return dy[d.getDay()]+" "+d.getDate()+" "+m[d.getMonth()]; })() )
+        ),
         DEMO_MODE&&React.createElement("div", { style:{ marginTop:8,padding:"7px 12px",background:"rgba(255,200,80,0.08)",border:"1px solid rgba(255,200,80,0.2)",borderRadius:10,fontSize:11,color:"#ffc850",display:"inline-block" } }, "🧪 Demo results"),
         !DEMO_MODE&&WORKER_URL&&React.createElement("div", { style:{ marginTop:8,padding:"7px 12px",background:"rgba(176,136,255,0.08)",border:"1px solid rgba(176,136,255,0.2)",borderRadius:10,fontSize:11,color:"#b088ff",display:"inline-block" } }, "🔍 Live web search")
       ),
@@ -640,22 +654,27 @@ function ResultsScreen(props) {
 // ── API CALL ─────────────────────────────────────────────────
 function buildPrompt(suburb) {
   var d = new Date();
-  var dateStr = d.toDateString();
-  return "You are a knowledgeable local guide for " + suburb + ".\nToday is " + dateStr + ".\n" +
-    (WORKER_URL ? "Use web search to find current, real information for today and this weekend.\n" : "") +
-    "Return ONLY valid JSON (no markdown) with this structure:\n" +
+  var days = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  var months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  var dayName = days[d.getDay()];
+  var dateStr = dayName + " " + d.getDate() + " " + months[d.getMonth()] + " " + d.getFullYear();
+  // Work out this weekend's dates
+  var daysUntilSat = (6 - d.getDay() + 7) % 7 || 7;
+  var sat = new Date(d); sat.setDate(d.getDate() + daysUntilSat);
+  var sun = new Date(sat); sun.setDate(sat.getDate() + 1);
+  var satStr = "Sat " + sat.getDate() + " " + months[sat.getMonth()];
+  var sunStr = "Sun " + sun.getDate() + " " + months[sun.getMonth()];
+  return "Local guide for " + suburb + ". Today: " + dateStr + ". This weekend: " + satStr + " and " + sunStr + ".\n" +
+    "Return ONLY valid JSON, no markdown:\n" +
     "{\"eats\":{" +
-    "\"breakfast\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Cafe|Bakery|Brunch\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
-    "\"lunch\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Restaurant|Cafe|Bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
-    "\"dinner\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Restaurant|Bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Opens Xpm\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]," +
-    "\"bars\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"Bar|Pub|Wine bar\",\"confidence\":85,\"why\":\"2 sentences\",\"hours\":\"Open X · closes Xam\",\"price\":\"$|$$|$$$\",\"tags\":[\"t1\",\"t2\"],\"maps\":\"https://maps.google.com/?q=...\"}]" +
-    "},\n" +
-    "\"events\":[{\"name\":\"...\",\"emoji\":\"e\",\"when\":\"Today Xpm|Saturday Xam\",\"where\":\"venue name\",\"desc\":\"1-2 sentences\"}],\n" +
-    "\"local\":[{\"name\":\"...\",\"emoji\":\"e\",\"type\":\"type\",\"desc\":\"1-2 sentences\",\"suburb\":\"suburb\",\"maps\":\"https://maps.google.com/?q=...\"}]}\n\n" +
-    "For eats: 2 breakfast spots (cafes, bakeries, brunch), 2 lunch spots (restaurants, cafes, pubs), 2 dinner spots (restaurants, bars), 2 bars/pubs for drinks.\n" +
-    "4 events happening today or this weekend, 3 local spots worth knowing.\n" +
-    "Confidence score: 90+ = consistently excellent reviews, 80-89 = very good, 70-79 = good. Base on real reputation.\n" +
-    "All results must be real places in or very close to " + suburb + ". Use local currency symbols and local context appropriate for that location.";
+    "\"breakfast\":[{\"name\":\"\",\"emoji\":\"\",\"type\":\"Cafe|Bakery\",\"confidence\":85,\"why\":\"1-2 sentences\",\"hours\":\"\",\"price\":\"$|$$|$$$\",\"tags\":[],\"maps\":\"https://maps.google.com/?q=NAME+SUBURB\"}]," +
+    "\"lunch\":[same fields]," +
+    "\"dinner\":[same fields]," +
+    "\"bars\":[same fields]}," +
+    "\"events\":[{\"name\":\"\",\"emoji\":\"\",\"when\":\"use exact date e.g. "+satStr+" 10am\",\"where\":\"\",\"desc\":\"1 sentence\",\"maps\":\"https://maps.google.com/?q=VENUE+SUBURB\"}]," +
+    "\"local\":[{\"name\":\"\",\"emoji\":\"\",\"type\":\"\",\"desc\":\"1 sentence\",\"suburb\":\"\",\"maps\":\"https://maps.google.com/?q=NAME+SUBURB\"}]}\n\n" +
+    "Rules: 2 items per eats section, 3 events (only on "+dateStr+", "+satStr+" or "+sunStr+"), 3 local gems. " +
+    "Real places near "+suburb+" only. Use local currency. Confidence: 90+=excellent, 80-89=very good, 70-79=good.";
 }
 
 // ── APP ROOT ─────────────────────────────────────────────────
