@@ -26,7 +26,7 @@
 const { useState, useEffect, useRef } = React;
 
 // ── CONFIG ────────────────────────────────────────────────────
-const VERSION    = "1.4.0";
+const VERSION    = "1.5.0";
 const DEMO_MODE  = false; // set true to use mock data without API key
 const WORKER_URL = "";    // e.g. "https://skedaddle-worker.yourname.workers.dev"
 
@@ -763,7 +763,69 @@ function App() {
   return React.createElement(HomeScreen, { apiKey:apiKey, onSettings:goSettings, onSearch:doSearch });
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
+// ── UPDATE TOAST ─────────────────────────────────────────────
+function UpdateToast() {
+  var sw = useState(null); var waiting=sw[0],setWaiting=sw[1];
+  var vis = useState(false); var visible=vis[0],setVisible=vis[1];
+
+  useEffect(function() {
+    if (!("serviceWorker" in navigator)) return;
+    navigator.serviceWorker.register("/sw.js").then(function(reg) {
+      function onUpdate(r) {
+        if (r && r.waiting) { setWaiting(r.waiting); setTimeout(function(){ setVisible(true); }, 500); }
+      }
+      reg.addEventListener("updatefound", function() {
+        var newSW = reg.installing;
+        if (!newSW) return;
+        newSW.addEventListener("statechange", function() {
+          if (newSW.state === "installed" && navigator.serviceWorker.controller) {
+            setWaiting(newSW); setTimeout(function(){ setVisible(true); }, 500);
+          }
+        });
+      });
+      onUpdate(reg);
+      reg.update();
+    }).catch(function(){});
+  }, []);
+
+  function doUpdate() {
+    if (!waiting) return;
+    waiting.postMessage({ type: "SKIP_WAITING" });
+    window.location.reload();
+  }
+
+  if (!visible) return null;
+  return React.createElement("div", {
+    style:{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", zIndex:9999,
+      background:"#1a2e22", border:"1px solid rgba(86,200,140,0.4)", borderRadius:16,
+      padding:"12px 20px", display:"flex", alignItems:"center", gap:12,
+      boxShadow:"0 8px 32px rgba(0,0,0,0.5)", fontFamily:"'DM Sans',sans-serif",
+      animation:"fadeUp 0.35s cubic-bezier(0.22,1,0.36,1) both",
+      whiteSpace:"nowrap" }
+  },
+    React.createElement("span", { style:{ fontSize:18 } }, "✨"),
+    React.createElement("span", { style:{ fontSize:13, color:"#c8f0d8", fontWeight:600 } }, "New version available"),
+    React.createElement("button", {
+      onClick: doUpdate,
+      style:{ padding:"6px 14px", borderRadius:10, background:"#56c88c", color:"#071a10",
+        border:"none", cursor:"pointer", fontSize:12, fontWeight:700, fontFamily:"'DM Sans',sans-serif" }
+    }, "Update"),
+    React.createElement("button", {
+      onClick: function(){ setVisible(false); },
+      style:{ background:"none", border:"none", color:"#7a7570", cursor:"pointer", fontSize:18, lineHeight:1, padding:"0 2px" }
+    }, "×")
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  React.createElement(React.Fragment, null,
+    React.createElement(App, null),
+    React.createElement(UpdateToast, null)
+  )
+);
 </script>
+<style>
+@keyframes fadeUp { from { opacity:0; transform:translate(-50%,16px); } to { opacity:1; transform:translate(-50%,0); } }
+</style>
 </body>
 </html>
